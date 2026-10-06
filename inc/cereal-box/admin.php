@@ -138,6 +138,10 @@ function cornflex_box_bg_page() {
 	$bg_opacity      = get_option( 'cbg_bg_opacity', '65' );
 	$overlay_color   = get_option( 'cbg_bg_overlay_color', '#050507' );
 	$overlay         = get_option( 'cbg_bg_overlay_strength', '78' );
+	$overlay_mobile  = get_option( 'cbg_bg_overlay_strength_mobile', '' );
+	if ( '' === $overlay_mobile ) {
+		$overlay_mobile = $overlay;
+	}
 	$columns_desktop = get_option( 'cbg_bg_columns_desktop', '10' );
 	$speed           = get_option( 'cbg_bg_speed', '85' );
 	?>
@@ -162,6 +166,13 @@ function cornflex_box_bg_page() {
 					<input type="range" name="cbg_bg_overlay_strength" min="0" max="100" value="<?php echo esc_attr( $overlay ); ?>" oninput="document.getElementById('ov_val').innerText = this.value + '%'" style="width: 70%; vertical-align: middle;">
 					<span id="ov_val" style="font-weight: bold; margin-right: 8px;"><?php echo esc_html( $overlay ); ?>%</span>
 					<p style="font-size: 13px; color: #71717a; margin: 5px 0 0;">השכבה הכהה שמעל הקופסאות. פחות = רקע בהיר יותר. 78% הוא המראה המקורי.</p>
+				</div>
+
+				<div>
+					<label style="display: block; font-weight: 600; margin-bottom: 6px;">כהות שכבת הכיסוי במובייל (0% עד 100%):</label>
+					<input type="range" name="cbg_bg_overlay_strength_mobile" min="0" max="100" value="<?php echo esc_attr( $overlay_mobile ); ?>" oninput="document.getElementById('ovm_val').innerText = this.value + '%'" style="width: 70%; vertical-align: middle;">
+					<span id="ovm_val" style="font-weight: bold; margin-right: 8px;"><?php echo esc_html( $overlay_mobile ); ?>%</span>
+					<p style="font-size: 13px; color: #71717a; margin: 5px 0 0;">אותה שכבה במסכים עד 640px. במסך צר היא נראית כהה יותר, אז כדאי ערך נמוך יותר מהדסקטופ.</p>
 				</div>
 
 				<div>

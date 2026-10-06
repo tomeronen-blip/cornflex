@@ -165,6 +165,10 @@ function cornflex_box_render() {
 	$bg_rgb  = implode( ', ', sscanf( $bg_color, '#%02x%02x%02x' ) );
 	$overlay = intval( get_option( 'cbg_bg_overlay_strength', '78' ) ) / 100;
 
+	// Mobile falls back to the desktop value until it is set.
+	$overlay_mobile = get_option( 'cbg_bg_overlay_strength_mobile', '' );
+	$overlay_mobile = '' === $overlay_mobile ? $overlay : intval( $overlay_mobile ) / 100;
+
 	$columns = intval( get_option( 'cbg_bg_columns_desktop', '10' ) );
 	if ( $columns < 6 ) {
 		$columns = 10;
@@ -182,7 +186,7 @@ function cornflex_box_render() {
 
 	ob_start();
 	?>
-	<div class="cdp-wrapper" style="--cdp-speed: <?php echo esc_attr( $speed ); ?>s; --cdp-bg-rgb: <?php echo esc_attr( $bg_rgb ); ?>; --cdp-overlay: <?php echo esc_attr( $overlay ); ?>;">
+	<div class="cdp-wrapper" style="--cdp-speed: <?php echo esc_attr( $speed ); ?>s; --cdp-bg-rgb: <?php echo esc_attr( $bg_rgb ); ?>; --cdp-overlay: <?php echo esc_attr( $overlay ); ?>; --cdp-overlay-mobile: <?php echo esc_attr( $overlay_mobile ); ?>;">
 		<div class="cdp-viewport" style="opacity: <?php echo esc_attr( $bg_opacity ); ?>;">
 			<?php foreach ( $bg_cols as $c => $col_imgs ) : ?>
 				<div class="cdp-col <?php echo 0 === $c % 2 ? 'direction-up' : 'direction-down'; ?>">

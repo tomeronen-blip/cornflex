@@ -1001,3 +1001,10 @@
         display: none;
     }
 }
+
+/* Mobile has its own overlay darkness setting. */
+@media (max-width: 640px) {
+    .cdp-overlay {
+        --cdp-overlay: var(--cdp-overlay-mobile);
+    }
+}
