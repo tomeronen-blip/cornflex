@@ -56,7 +56,6 @@
 		}
 		box.textContent = msg;
 		box.classList.add('visible');
-		box.scrollIntoView({ behavior: 'smooth', block: 'center' });
 	}
 
 	function hideError() {
