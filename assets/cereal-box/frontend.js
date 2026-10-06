@@ -62,18 +62,6 @@
 		$('cdp_alert').classList.remove('visible');
 	}
 
-	// Block double-tap zoom on mobile, except inside inputs.
-	(function () {
-		var lastTouchEnd = 0;
-		document.addEventListener('touchend', function (e) {
-			var now = Date.now();
-			if (now - lastTouchEnd <= 300 && !e.target.closest('input, textarea')) {
-				e.preventDefault();
-			}
-			lastTouchEnd = now;
-		}, { passive: false });
-	})();
-
 	/* ---------- Navigation ---------- */
 
 	function startJourney() {
