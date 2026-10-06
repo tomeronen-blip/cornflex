@@ -189,7 +189,7 @@ function cornflex_box_render() {
 					<div class="cdp-track">
 						<?php foreach ( $col_imgs as $img_url ) : ?>
 							<div class="cdp-box-item">
-								<img src="<?php echo esc_url( $img_url ); ?>" loading="lazy" decoding="async" alt="">
+								<img src="<?php echo esc_url( $img_url ); ?>" decoding="async" alt="">
 							</div>
 						<?php endforeach; ?>
 					</div>

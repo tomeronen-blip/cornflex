@@ -49,6 +49,10 @@
     display: flex;
     flex-direction: column;
     gap: 14px;
+    /* Own GPU layer per strip; mobile Safari stalls the animation without it. */
+    will-change: transform;
+    -webkit-backface-visibility: hidden;
+    backface-visibility: hidden;
 }
 .cdp-col.direction-up .cdp-track {
     animation: cdpScrollUp var(--cdp-speed, 85s) linear infinite;
@@ -983,5 +987,17 @@
     }
     .cdp-desktop-only {
         display: none !important;
+    }
+}
+
+/* Mobile: fewer moving strips (only ~4 are on screen anyway); 10 is too heavy for phones. */
+@media (max-width: 900px) {
+    .cdp-col:nth-child(n+8) {
+        display: none;
+    }
+}
+@media (max-width: 640px) {
+    .cdp-col:nth-child(n+6) {
+        display: none;
     }
 }
