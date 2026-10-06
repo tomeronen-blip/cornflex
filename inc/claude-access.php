@@ -84,7 +84,11 @@ function claude_access_is_rest_request() {
  * @return int|false
  */
 function claude_access_determine_user( $user_id ) {
-	if ( $user_id || ! claude_access_is_rest_request() ) {
+	// user_can() and update_option() can fire hooks that call
+	// wp_get_current_user(), which re-runs this filter. Guard against recursion.
+	static $running = false;
+
+	if ( $running || $user_id || ! claude_access_is_rest_request() ) {
 		return $user_id;
 	}
 
@@ -98,14 +102,17 @@ function claude_access_determine_user( $user_id ) {
 		return $user_id;
 	}
 
-	if ( ! user_can( (int) $record['user_id'], 'manage_options' ) ) {
-		return $user_id;
+	$running = true;
+
+	$allowed = user_can( (int) $record['user_id'], 'manage_options' );
+	if ( $allowed ) {
+		$record['last_used'] = time();
+		update_option( CLAUDE_ACCESS_OPTION, $record, false );
 	}
 
-	$record['last_used'] = time();
-	update_option( CLAUDE_ACCESS_OPTION, $record, false );
+	$running = false;
 
-	return (int) $record['user_id'];
+	return $allowed ? (int) $record['user_id'] : $user_id;
 }
 add_filter( 'determine_current_user', 'claude_access_determine_user', 30 );
 
