@@ -34,5 +34,7 @@ function hello_elementor_child_scripts_styles() {
 
 }
 add_action( 'wp_enqueue_scripts', 'hello_elementor_child_scripts_styles', 20 );
+
 require_once get_stylesheet_directory() . '/inc/claude-access.php';
+require_once get_stylesheet_directory() . '/inc/cereal-box/cereal-box.php';
 
