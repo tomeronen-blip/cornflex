@@ -318,7 +318,7 @@ function cornflex_box_render() {
 							<div id="cdp_loader_box" class="cdp-loader-wrap">
 								<div class="cdp-custom-loader"></div>
 								<div class="cdp-q-title">מכינים את הקופסה שלכם!</div>
-								<div id="cdp_loader_timer" style="font-size: 15px; font-weight: 700; color: #ffffff; margin-bottom: 6px; font-variant-numeric: tabular-nums;">זמן משוער: 01:30</div>
+								<div id="cdp_loader_timer" style="font-size: 15px; font-weight: 700; color: #ffffff; margin-bottom: 6px; font-variant-numeric: tabular-nums;">זמן משוער: 02:00</div>
 								<div id="cdp_loader_step_sub" style="font-size: 14px; color: #94a3b8;">התמונה בפנים...</div>
 							</div>
 

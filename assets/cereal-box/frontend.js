@@ -9,7 +9,7 @@
 	var config = window.cornflexBox || {};
 	var MAX_FILE_SIZE = 10 * 1024 * 1024;
 	var LAST_STEP = 4;
-	var ESTIMATE_SECONDS = 90;
+	var ESTIMATE_SECONDS = 120;
 	// Spread evenly over the estimate; the last one stays until the box is ready.
 	var LOADER_MESSAGES = [
 		'התמונה בפנים...',
