@@ -9,6 +9,8 @@
 	var config = window.cornflexBox || {};
 	var MAX_FILE_SIZE = 10 * 1024 * 1024;
 	var LAST_STEP = 4;
+	var ESTIMATE_SECONDS = 90;
+	// Spread evenly over the estimate; the last one stays until the box is ready.
 	var LOADER_MESSAGES = [
 		'התמונה בפנים...',
 		'השם כבר על הקופסה...',
@@ -256,14 +258,11 @@
 		setGeneratingView(true);
 		scrollTop();
 
-		var msgIndex = 0;
-		$('cdp_loader_step_sub').textContent = LOADER_MESSAGES[0];
+		var secondsLeft = ESTIMATE_SECONDS;
+		updateLoader(secondsLeft);
 		var ticker = setInterval(function () {
-			if (msgIndex < LOADER_MESSAGES.length - 1) {
-				msgIndex++;
-				$('cdp_loader_step_sub').textContent = LOADER_MESSAGES[msgIndex];
-			}
-		}, 12000);
+			updateLoader(--secondsLeft);
+		}, 1000);
 
 		var data = new FormData();
 		data.append('action', 'cbg_generate');
@@ -302,6 +301,24 @@
 				clearInterval(ticker);
 				state.busy = false;
 			});
+	}
+
+	function formatTime(seconds) {
+		var m = Math.floor(seconds / 60);
+		var s = seconds % 60;
+		return (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s;
+	}
+
+	// Count down the estimate, then count up the extra time.
+	function updateLoader(secondsLeft) {
+		var elapsed = ESTIMATE_SECONDS - secondsLeft;
+		var slot = ESTIMATE_SECONDS / LOADER_MESSAGES.length;
+		var index = Math.min(LOADER_MESSAGES.length - 1, Math.floor(elapsed / slot));
+
+		$('cdp_loader_timer').textContent = secondsLeft >= 0
+			? 'זמן משוער: ' + formatTime(secondsLeft)
+			: 'משלימים ליטוש אחרון... (' + formatTime(-secondsLeft) + ')';
+		$('cdp_loader_step_sub').textContent = LOADER_MESSAGES[index];
 	}
 
 	function showResult(url) {

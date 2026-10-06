@@ -207,10 +207,16 @@
     transition: transform 0.12s ease, background-color 0.12s ease !important;
 }
 .cdp-btn-solid-red:hover {
-    background: #be123c !important;
+    background: #f43f5e !important;
     background-image: none !important;
     border: none !important;
     box-shadow: none !important;
+}
+.cdp-btn-solid-red svg {
+    transition: transform 0.2s ease;
+}
+.cdp-btn-solid-red:hover svg {
+    transform: translateX(-5px);
 }
 .cdp-btn-solid-red:active {
     transform: scale(0.98) !important;
@@ -489,7 +495,7 @@
     transition: background-color 0.12s ease;
 }
 .cdp-btn-next:hover {
-    background: #be123c !important;
+    background: #f43f5e !important;
     background-image: none !important;
     border: none !important;
     box-shadow: none !important;
@@ -791,6 +797,7 @@
     color: #94a3b8;
 }
 .cdp-toast-modal {
+    direction: rtl;
     display: none;
     position: fixed;
     inset: 0;
