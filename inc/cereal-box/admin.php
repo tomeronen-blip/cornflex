@@ -15,7 +15,7 @@ if ( ! defined( 'ABSPATH' ) ) {
  * @return void
  */
 function cornflex_box_admin_menu() {
-	add_menu_page( 'מחולל קורנפלקס', 'מחולל קורנפלקס', 'manage_options', 'cereal-box-settings', 'cornflex_box_settings_page', 'dashicons-art', 30 );
+	add_menu_page( 'Cornflex', 'Cornflex', 'manage_options', 'cereal-box-settings', 'cornflex_box_settings_page', 'dashicons-art', 30 );
 	add_submenu_page( 'cereal-box-settings', 'הגדרות מערכת', 'הגדרות מערכת', 'manage_options', 'cereal-box-settings', 'cornflex_box_settings_page' );
 	add_submenu_page( 'cereal-box-settings', 'הגדרות רקע נע', 'הגדרות רקע נע', 'manage_options', 'cereal-box-bg-manager', 'cornflex_box_bg_page' );
 	add_submenu_page( 'cereal-box-settings', 'היסטוריית הפקות', 'היסטוריית הפקות', 'manage_options', 'cereal-box-history', 'cornflex_box_history_page' );
