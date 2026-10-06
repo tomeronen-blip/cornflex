@@ -35,7 +35,18 @@ if ( function_exists( 'cbg_handle_generate' ) ) {
 
 define( 'CORNFLEX_BOX_DIR', __DIR__ );
 define( 'CORNFLEX_BOX_URL', get_stylesheet_directory_uri() . '/assets/cereal-box' );
-define( 'CORNFLEX_BOX_VERSION', '1.0.0' );
+
+/**
+ * Asset version = file modification time, so browsers pick up changes after a pull.
+ *
+ * @param string $file File name in assets/cereal-box.
+ * @return string
+ */
+function cornflex_box_asset_version( $file ) {
+	$path = get_stylesheet_directory() . '/assets/cereal-box/' . $file;
+
+	return file_exists( $path ) ? (string) filemtime( $path ) : '1';
+}
 
 require_once CORNFLEX_BOX_DIR . '/setup.php';
 require_once CORNFLEX_BOX_DIR . '/admin.php';

@@ -5,6 +5,7 @@
     --brand-color: #0c3b9c;
     /* Background / overlay color from the admin, as an "r, g, b" triplet. */
     --cdp-bg-rgb: 5, 5, 7;
+    --cdp-overlay: 0.78;
 
     position: relative;
     width: 100%;
@@ -69,7 +70,13 @@
     inset: 0;
     z-index: 2;
     pointer-events: none;
-    background: radial-gradient(circle at 50% 30%, rgba(var(--cdp-bg-rgb), 0.78) 0%, rgba(var(--cdp-bg-rgb), 0.96) 65%, rgb(var(--cdp-bg-rgb)) 100%);
+    /* --cdp-overlay is the center darkness from the admin (0.78 = the original look); the edges scale with it. */
+    background: radial-gradient(
+        circle at 50% 30%,
+        rgba(var(--cdp-bg-rgb), var(--cdp-overlay)) 0%,
+        rgba(var(--cdp-bg-rgb), min(1, calc(var(--cdp-overlay) * 1.23))) 65%,
+        rgba(var(--cdp-bg-rgb), min(1, calc(var(--cdp-overlay) * 1.28))) 100%
+    );
 }
 .cdp-content-layer {
     position: relative;
@@ -214,7 +221,6 @@
     color: #94a3b8;
     line-height: 1.55;
     text-align: center;
-    max-width: 460px;
 }
 .cdp-wizard-container {
     width: 100%;
@@ -291,7 +297,7 @@
 }
 .cdp-q-title {
     font-size: 21px;
-    font-weight: 900;
+    font-weight: 800;
     color: #ffffff;
     margin: 0 0 6px;
     text-align: center;
@@ -382,14 +388,17 @@
     user-select: none;
 }
 .cdp-age-btn {
-    width: 52px;
-    height: 52px;
-    border-radius: 14px;
+    width: 52px !important;
+    height: 52px !important;
+    min-width: 52px !important;
+    padding: 0 !important;
+    border-radius: 50% !important;
     border: 1px solid rgba(255, 255, 255, 0.2) !important;
     background: rgba(255, 255, 255, 0.1) !important;
     color: #ffffff !important;
-    font-size: 26px;
-    font-weight: 900;
+    font-size: 26px !important;
+    font-weight: 800 !important;
+    line-height: 1 !important;
     cursor: pointer;
     display: flex;
     align-items: center;
@@ -458,16 +467,18 @@
 }
 .cdp-btn-next {
     flex: 1;
-    padding: 16px;
+    padding: 16px !important;
     background: #e11d48 !important;
     background-image: none !important;
     color: #ffffff !important;
     border: none !important;
     outline: none !important;
     box-shadow: none !important;
-    border-radius: 16px;
-    font-size: 17px;
-    font-weight: 800;
+    border-radius: 16px !important;
+    font-size: 17px !important;
+    font-weight: 800 !important;
+    line-height: 1.3 !important;
+    text-decoration: none !important;
     cursor: pointer;
     display: flex;
     align-items: center;
@@ -490,19 +501,19 @@
     border: none !important;
     outline: none !important;
     box-shadow: none !important;
-    color: #cbd5e1 !important;
+    color: #ffffff !important;
+    text-decoration: underline !important;
+    text-underline-offset: 3px;
     font-size: 14px !important;
     font-weight: 600 !important;
     cursor: pointer !important;
     text-align: center !important;
     padding: 6px 16px !important;
-    opacity: 0.85;
     touch-action: manipulation;
     user-select: none;
-    transition: opacity 0.2s ease, color 0.2s ease;
 }
-.cdp-btn-back-outside:hover {
-    opacity: 1;
+.cdp-btn-back-outside:hover,
+.cdp-btn-back-outside:focus {
     color: #ffffff !important;
     text-decoration: underline !important;
     background: transparent !important;
@@ -814,20 +825,16 @@
     margin: 0 0 20px;
     line-height: 1.5;
 }
-.cdp-toast-btn {
-    width: 100%;
-    padding: 14px 20px;
-    background: #e11d48;
-    color: #ffffff;
-    border: none;
-    border-radius: 14px;
-    font-size: 16px;
-    font-weight: 800;
-    cursor: pointer;
-    transition: background-color 0.12s ease;
+.cdp-toast-card .cdp-btn-row {
+    flex-direction: column;
+    align-items: center;
 }
-.cdp-toast-btn:hover {
-    background: #be123c;
+.cdp-toast-card .cdp-btn-next {
+    width: 100%;
+}
+.cdp-toast-card .cdp-btn-back-outside {
+    display: inline-block;
+    margin-top: 4px !important;
 }
 @media (max-width: 640px) {
     .cdp-wrapper {
@@ -915,7 +922,7 @@
 /* Error message inside the wizard card. */
 .cdp-alert {
     display: none;
-    margin: 0 0 16px;
+    margin: 16px 0 0;
     padding: 12px 14px;
     border-radius: 14px;
     background: rgba(225, 29, 72, 0.14);
@@ -947,18 +954,4 @@
 }
 .cdp-code-error.visible {
     display: block;
-}
-.cdp-toast-cancel {
-    display: inline-block;
-    margin-top: 12px;
-    background: transparent;
-    border: none;
-    color: #94a3b8;
-    font-size: 14px;
-    font-weight: 600;
-    cursor: pointer;
-    text-decoration: underline;
-}
-.cdp-toast-cancel:hover {
-    color: #ffffff;
 }

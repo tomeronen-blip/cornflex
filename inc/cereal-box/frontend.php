@@ -49,8 +49,8 @@ add_action( 'init', 'cornflex_box_register_shortcodes', 99 );
  * @return void
  */
 function cornflex_box_assets() {
-	wp_register_style( 'cornflex-box', CORNFLEX_BOX_URL . '/frontend.css', [], CORNFLEX_BOX_VERSION );
-	wp_register_script( 'cornflex-box', CORNFLEX_BOX_URL . '/frontend.js', [], CORNFLEX_BOX_VERSION, true );
+	wp_register_style( 'cornflex-box', CORNFLEX_BOX_URL . '/frontend.css', [], cornflex_box_asset_version( 'frontend.css' ) );
+	wp_register_script( 'cornflex-box', CORNFLEX_BOX_URL . '/frontend.js', [], cornflex_box_asset_version( 'frontend.js' ), true );
 	wp_localize_script(
 		'cornflex-box',
 		'cornflexBox',
@@ -161,7 +161,8 @@ function cornflex_box_render() {
 	if ( ! $bg_color ) {
 		$bg_color = '#050507';
 	}
-	$bg_rgb = implode( ', ', sscanf( $bg_color, '#%02x%02x%02x' ) );
+	$bg_rgb  = implode( ', ', sscanf( $bg_color, '#%02x%02x%02x' ) );
+	$overlay = intval( get_option( 'cbg_bg_overlay_strength', '78' ) ) / 100;
 
 	$columns = intval( get_option( 'cbg_bg_columns_desktop', '10' ) );
 	if ( $columns < 6 ) {
@@ -180,7 +181,7 @@ function cornflex_box_render() {
 
 	ob_start();
 	?>
-	<div class="cdp-wrapper" style="--cdp-speed: <?php echo esc_attr( $speed ); ?>s; --cdp-bg-rgb: <?php echo esc_attr( $bg_rgb ); ?>;">
+	<div class="cdp-wrapper" style="--cdp-speed: <?php echo esc_attr( $speed ); ?>s; --cdp-bg-rgb: <?php echo esc_attr( $bg_rgb ); ?>; --cdp-overlay: <?php echo esc_attr( $overlay ); ?>;">
 		<div class="cdp-viewport" style="opacity: <?php echo esc_attr( $bg_opacity ); ?>;">
 			<?php foreach ( $bg_cols as $c => $col_imgs ) : ?>
 				<div class="cdp-col <?php echo 0 === $c % 2 ? 'direction-up' : 'direction-down'; ?>">
@@ -238,8 +239,6 @@ function cornflex_box_render() {
 
 					<div id="cdp_wizard_container" class="cdp-wizard-container" style="display: none;">
 						<div class="cdp-wizard-card">
-							<div id="cdp_alert" class="cdp-alert" role="alert"></div>
-
 							<div class="cdp-progress-bar">
 								<?php for ( $i = 0; $i <= 4; $i++ ) : ?>
 									<div class="cdp-progress-segment<?php echo 0 === $i ? ' active' : ''; ?>" id="cdp_prog_<?php echo esc_attr( $i ); ?>"></div>
@@ -263,6 +262,8 @@ function cornflex_box_render() {
 										<div id="cdp_drop_subtext" class="cdp-dropzone-subtext">JPG, PNG או WEBP עד 10MB</div>
 										<input type="file" id="cdp_file" accept="image/jpeg,image/png,image/webp" style="display: none;">
 									</div>
+									<?php // Error messages; the script moves this into the current step. ?>
+									<div id="cdp_alert" class="cdp-alert" role="alert"></div>
 									<div class="cdp-btn-row">
 										<button type="button" class="cdp-btn-next" data-cdp="next" data-step="1">המשך לשם</button>
 									</div>
@@ -320,7 +321,7 @@ function cornflex_box_render() {
 							</div>
 
 							<div id="cdp_result_box" class="cdp-result-wrap">
-								<div style="font-size: 22px; font-weight: 900; color: #ffffff; margin-bottom: 6px;">הקופסה שלכם מוכנה. מה אומרים?</div>
+								<div style="font-size: 22px; font-weight: 800; color: #ffffff; margin-bottom: 6px;">הקופסה שלכם מוכנה. מה אומרים?</div>
 								<div style="font-size: 14.5px; color: #cbd5e1; margin-bottom: 18px;">ככה היא הולכת להיראות. אהבתם? בואו נשלח אותה אליכם.</div>
 
 								<div class="box-container">
@@ -385,8 +386,10 @@ function cornflex_box_render() {
 			<div class="cdp-toast-desc">הזינו את קוד הגישה כדי ליצור את הקופסה.</div>
 			<input type="password" id="cdp_code_input" class="cdp-input cdp-code-input" inputmode="numeric" autocomplete="off" placeholder="קוד גישה">
 			<div id="cdp_code_error" class="cdp-code-error">הקוד שגוי. נסו שוב.</div>
-			<button type="button" class="cdp-toast-btn" data-cdp="code-submit">יוצרים את הקופסה</button>
-			<button type="button" class="cdp-toast-cancel" data-cdp="code-cancel">ביטול</button>
+			<div class="cdp-btn-row">
+				<button type="button" class="cdp-btn-next" data-cdp="code-submit">יוצרים את הקופסה</button>
+				<button type="button" class="cdp-btn-back-outside" data-cdp="code-cancel">ביטול</button>
+			</div>
 		</div>
 	</div>
 
@@ -394,7 +397,9 @@ function cornflex_box_render() {
 		<div class="cdp-toast-card">
 			<div class="cdp-toast-title">יש! הקופסה בדרך אליכם</div>
 			<div class="cdp-toast-desc">ההזמנה נקלטה בהצלחה. אנחנו נדפיס את הקופסה האישית שלכם ונשלח אותה עד הבית.</div>
-			<a href="<?php echo esc_url( home_url( '/' ) ); ?>" class="cdp-toast-btn" style="display: block; text-decoration: none;">חזרה לאתר</a>
+			<div class="cdp-btn-row">
+				<a href="<?php echo esc_url( home_url( '/' ) ); ?>" class="cdp-btn-next">חזרה לאתר</a>
+			</div>
 		</div>
 	</div>
 	<?php

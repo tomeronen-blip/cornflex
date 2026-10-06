@@ -44,11 +44,17 @@
 		window.scrollTo({ top: 0, behavior: 'smooth' });
 	}
 
+	// Show the message in the current step, right above its buttons.
 	function showError(msg) {
 		var box = $('cdp_alert');
+		var step = $('cdp_step_' + state.step);
+		var row = step && step.querySelector('.cdp-btn-row');
+		if (row) {
+			step.insertBefore(box, row);
+		}
 		box.textContent = msg;
 		box.classList.add('visible');
-		scrollTop();
+		box.scrollIntoView({ behavior: 'smooth', block: 'center' });
 	}
 
 	function hideError() {
@@ -84,25 +90,29 @@
 		scrollTop();
 	}
 
-	function validateUpTo(target) {
+	// The first step before `target` that is missing input, or null.
+	function firstInvalidStep(target) {
 		if (target >= 1 && !state.file) {
-			showError('נא לבחור תמונה כדי להמשיך.');
-			return 0;
+			return { step: 0, message: 'נא לבחור תמונה כדי להמשיך.' };
 		}
 		if (target >= 2 && !$('cdp_name').value.trim()) {
-			showError('נא להזין שם באנגלית.');
-			return 1;
+			return { step: 1, message: 'נא להזין שם באנגלית.' };
 		}
-		return -1;
+		return null;
+	}
+
+	// Go to the missing step (if not already there) and explain what's missing.
+	function reportInvalid(invalid) {
+		if (invalid.step !== state.step) {
+			gotoStep(invalid.step, 'backward');
+		}
+		showError(invalid.message);
 	}
 
 	function gotoStep(target, direction) {
-		var invalidStep = direction === 'backward' ? -1 : validateUpTo(target);
-		if (invalidStep !== -1) {
-			if (invalidStep !== state.step) {
-				gotoStep(invalidStep, 'backward');
-				$('cdp_alert').classList.add('visible');
-			}
+		var invalid = direction === 'backward' ? null : firstInvalidStep(target);
+		if (invalid) {
+			reportInvalid(invalid);
 			return;
 		}
 
@@ -212,10 +222,9 @@
 		if (state.busy) {
 			return;
 		}
-		var invalidStep = validateUpTo(LAST_STEP);
-		if (invalidStep !== -1) {
-			gotoStep(invalidStep, 'backward');
-			$('cdp_alert').classList.add('visible');
+		var invalid = firstInvalidStep(LAST_STEP);
+		if (invalid) {
+			reportInvalid(invalid);
 			return;
 		}
 		if (config.requiresCode && !state.accessCode) {
