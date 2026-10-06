@@ -296,103 +296,107 @@ function cornflex_box_atlas_output_url( $data ) {
 }
 
 /**
- * AJAX: generate a cereal box cover.
+ * How long a job may stay "processing" before the status check calls it failed.
+ */
+const CORNFLEX_BOX_JOB_TIMEOUT = 360;
+
+/**
+ * Read a generation job.
  *
- * POST: image (file), name, age, suffix, hobby, access_code.
- * Success: { preview_url, prompt }.
+ * @param string $job_id Job ID.
+ * @return array|false
+ */
+function cornflex_box_get_job( $job_id ) {
+	return get_transient( 'cornflex_box_job_' . $job_id );
+}
+
+/**
+ * Save a generation job.
  *
+ * @param string $job_id Job ID.
+ * @param array  $job    Job data: status (processing|done|error), started, preview_url / message.
  * @return void
  */
-function cornflex_box_handle_generate() {
-	@set_time_limit( 300 ); // phpcs:ignore WordPress.PHP.NoSilencedErrors
+function cornflex_box_set_job( $job_id, array $job ) {
+	set_transient( 'cornflex_box_job_' . $job_id, $job, HOUR_IN_SECONDS );
+}
 
-	// phpcs:disable WordPress.Security.NonceVerification -- public form; access code instead of a nonce so cached pages keep working.
-	$required_code = cornflex_box_access_code();
-	$given_code    = isset( $_POST['access_code'] ) ? sanitize_text_field( wp_unslash( $_POST['access_code'] ) ) : '';
-	if ( '' !== $required_code && ! hash_equals( $required_code, $given_code ) ) {
-		wp_send_json_error(
-			[
-				'message' => 'קוד הגישה שגוי.',
-				'code'    => 'access_code',
-			]
-		);
-	}
+/**
+ * Send a JSON success response and close the connection, but keep running.
+ *
+ * Lets the long AI pipeline continue after the browser got its job ID.
+ *
+ * @param array $data Response data.
+ * @return void
+ */
+function cornflex_box_respond_and_continue( array $data ) {
+	ignore_user_abort( true );
 
-	$gemini_key = trim( (string) get_option( 'cbg_gemini_key' ) );
-	$atlas_key  = trim( (string) get_option( 'cbg_atlas_key' ) );
-	if ( '' === $gemini_key || '' === $atlas_key ) {
-		wp_send_json_error( [ 'message' => 'מפתחות ה-API אינם מוגדרים.' ] );
-	}
-
-	if ( empty( $_FILES['image'] ) || ! empty( $_FILES['image']['error'] ) ) {
-		wp_send_json_error( [ 'message' => 'לא נבחרה תמונה או שההעלאה נכשלה.' ] );
-	}
-
-	$name   = isset( $_POST['name'] ) ? trim( preg_replace( '/[^A-Z ]/', '', strtoupper( sanitize_text_field( wp_unslash( $_POST['name'] ) ) ) ) ) : '';
-	$age    = isset( $_POST['age'] ) ? absint( $_POST['age'] ) : 0;
-	$suffix = isset( $_POST['suffix'] ) ? preg_replace( '/[^A-Z]/', '', strtoupper( sanitize_text_field( wp_unslash( $_POST['suffix'] ) ) ) ) : '';
-	$hobby  = isset( $_POST['hobby'] ) ? sanitize_text_field( wp_unslash( $_POST['hobby'] ) ) : '';
-
-	if ( '' === $name ) {
-		wp_send_json_error( [ 'message' => 'נא להזין שם באנגלית.' ] );
-	}
-	if ( $age < 1 || $age > 99 ) {
-		wp_send_json_error( [ 'message' => 'נא לבחור גיל תקין.' ] );
-	}
-	if ( '' === $suffix ) {
-		$suffix = 'FLAKES';
-	}
-	if ( '' === $hobby ) {
-		$hobby = 'Classic cheerful breakfast cereal morning fun';
-	}
-
-	require_once ABSPATH . 'wp-admin/includes/file.php';
-	$upload = wp_handle_upload(
-		$_FILES['image'], // phpcs:ignore WordPress.Security.ValidatedSanitizedInput
+	$json = wp_json_encode(
 		[
-			'test_form' => false,
-			'mimes'     => [
-				'jpg|jpeg|jpe' => 'image/jpeg',
-				'png'          => 'image/png',
-				'webp'         => 'image/webp',
-			],
+			'success' => true,
+			'data'    => $data,
 		]
 	);
-	// phpcs:enable
 
-	if ( isset( $upload['error'] ) ) {
-		wp_send_json_error( [ 'message' => 'שגיאה בשמירת התמונה: ' . $upload['error'] ] );
+	while ( ob_get_level() > 0 ) {
+		ob_end_clean();
 	}
 
-	$source_path = $upload['file'];
-	$source_url  = $upload['url'];
-	$log         = [
-		'child_name'       => $name,
-		'child_age'        => $age,
-		'hobby'            => $hobby,
-		'source_image_url' => $source_url,
+	if ( ! headers_sent() ) {
+		header( 'Content-Type: application/json; charset=utf-8' );
+		header( 'Content-Length: ' . strlen( $json ) );
+		header( 'Connection: close' );
+	}
+
+	echo $json; // phpcs:ignore WordPress.Security.EscapeOutput
+
+	if ( function_exists( 'fastcgi_finish_request' ) ) {
+		fastcgi_finish_request();
+	} elseif ( function_exists( 'litespeed_finish_request' ) ) {
+		litespeed_finish_request();
+	} else {
+		flush();
+	}
+}
+
+/**
+ * The AI pipeline: moderation → prompt → Seedream → save → preview → log.
+ *
+ * @param array $input name, age, suffix, hobby, source_path, source_url.
+ * @return array { preview_url } on success, { message } on failure.
+ */
+function cornflex_box_run_generation( array $input ) {
+	$gemini_key = trim( (string) get_option( 'cbg_gemini_key' ) );
+	$atlas_key  = trim( (string) get_option( 'cbg_atlas_key' ) );
+	$retry_msg  = 'שגיאה ביצירת הקופסה. נסו שוב בעוד רגע.';
+	$log        = [
+		'child_name'       => $input['name'],
+		'child_age'        => $input['age'],
+		'hobby'            => $input['hobby'],
+		'source_image_url' => $input['source_url'],
 	];
 
-	$moderation = cornflex_box_moderate_image( $source_path, $gemini_key );
+	$moderation = cornflex_box_moderate_image( $input['source_path'], $gemini_key );
 	if ( true !== $moderation ) {
-		wp_delete_file( $source_path );
+		wp_delete_file( $input['source_path'] );
 		cornflex_box_log( $log + [ 'status' => 'failed', 'error_message' => $moderation ] );
-		wp_send_json_error( [ 'message' => $moderation ] );
+		return [ 'message' => $moderation ];
 	}
 
-	$model_image = cornflex_box_atlas_upload( $source_path, $atlas_key );
+	$model_image = cornflex_box_atlas_upload( $input['source_path'], $atlas_key );
 	if ( ! $model_image ) {
-		$mime        = mime_content_type( $source_path );
-		$model_image = 'data:' . ( $mime ? $mime : 'image/jpeg' ) . ';base64,' . base64_encode( file_get_contents( $source_path ) ); // phpcs:ignore WordPress.WP.AlternativeFunctions
+		$mime        = mime_content_type( $input['source_path'] );
+		$model_image = 'data:' . ( $mime ? $mime : 'image/jpeg' ) . ';base64,' . base64_encode( file_get_contents( $input['source_path'] ) ); // phpcs:ignore WordPress.WP.AlternativeFunctions
 	}
 
 	$base_prompt = strtr(
 		cornflex_box_prompt_template(),
 		[
-			'{name}'   => $name,
-			'{age}'    => $age,
-			'{suffix}' => $suffix,
-			'{hobby}'  => $hobby,
+			'{name}'   => $input['name'],
+			'{age}'    => $input['age'],
+			'{suffix}' => $input['suffix'],
+			'{hobby}'  => $input['hobby'],
 		]
 	);
 
@@ -434,7 +438,7 @@ Strictly convert any copyrighted brand, official football club name (e.g. Real M
 
 	if ( is_wp_error( $res ) ) {
 		cornflex_box_log( $log + [ 'status' => 'failed', 'error_message' => $res->get_error_message() ] );
-		wp_send_json_error( [ 'message' => 'שגיאה ביצירת הקופסה. נסו שוב בעוד רגע.' ] );
+		return [ 'message' => $retry_msg ];
 	}
 
 	$body = wp_remote_retrieve_body( $res );
@@ -443,30 +447,157 @@ Strictly convert any copyrighted brand, official football club name (e.g. Real M
 	if ( isset( $data['error'] ) || ( isset( $data['code'] ) && $data['code'] >= 400 ) ) {
 		$error = $data['msg'] ?? $data['error']['message'] ?? $data['message'] ?? $body;
 		cornflex_box_log( $log + [ 'status' => 'failed', 'error_message' => is_string( $error ) ? $error : wp_json_encode( $error ) ] );
-		wp_send_json_error( [ 'message' => 'שגיאה ביצירת הקופסה. נסו שוב בעוד רגע.' ] );
+		return [ 'message' => $retry_msg ];
 	}
 
 	$remote_url = cornflex_box_atlas_output_url( (array) $data );
 	if ( '' === $remote_url ) {
 		$error = $data['message'] ?? substr( $body, 0, 250 );
 		cornflex_box_log( $log + [ 'status' => 'failed', 'error_message' => is_string( $error ) ? $error : wp_json_encode( $error ) ] );
-		wp_send_json_error( [ 'message' => 'לא התקבלה תמונה. נסו שוב בעוד רגע.' ] );
+		return [ 'message' => 'לא התקבלה תמונה. נסו שוב בעוד רגע.' ];
 	}
 
-	$saved       = cornflex_box_save_remote_image( $remote_url, $name );
+	$saved       = cornflex_box_save_remote_image( $remote_url, $input['name'] );
 	$preview_url = $saved['url'];
 	if ( $saved['path'] ) {
-		$preview_url = cornflex_box_create_preview( $saved['path'], $name ) ?: $saved['url'];
+		$preview_url = cornflex_box_create_preview( $saved['path'], $input['name'] ) ?: $saved['url'];
 	}
 
 	cornflex_box_log( $log + [ 'result_image_url' => $saved['url'] ] );
 
-	wp_send_json_success(
+	return [ 'preview_url' => $preview_url ];
+}
+
+/**
+ * AJAX: start generating a cereal box cover.
+ *
+ * Validates and stores the upload, answers right away with a job ID, then
+ * runs the pipeline after the connection is closed. The browser polls
+ * cbg_job_status. Holding one request open for ~2 minutes failed on phones
+ * (tab paused while switching apps) and behind proxy timeouts.
+ *
+ * POST: image (file), name, age, suffix, hobby, access_code.
+ * Success: { job }.
+ *
+ * @return void
+ */
+function cornflex_box_handle_generate() {
+	@set_time_limit( 300 ); // phpcs:ignore WordPress.PHP.NoSilencedErrors
+
+	// phpcs:disable WordPress.Security.NonceVerification -- public form; access code instead of a nonce so cached pages keep working.
+	$required_code = cornflex_box_access_code();
+	$given_code    = isset( $_POST['access_code'] ) ? sanitize_text_field( wp_unslash( $_POST['access_code'] ) ) : '';
+	if ( '' !== $required_code && ! hash_equals( $required_code, $given_code ) ) {
+		wp_send_json_error(
+			[
+				'message' => 'קוד הגישה שגוי.',
+				'code'    => 'access_code',
+			]
+		);
+	}
+
+	if ( '' === trim( (string) get_option( 'cbg_gemini_key' ) ) || '' === trim( (string) get_option( 'cbg_atlas_key' ) ) ) {
+		wp_send_json_error( [ 'message' => 'מפתחות ה-API אינם מוגדרים.' ] );
+	}
+
+	if ( empty( $_FILES['image'] ) || ! empty( $_FILES['image']['error'] ) ) {
+		wp_send_json_error( [ 'message' => 'לא נבחרה תמונה או שההעלאה נכשלה.' ] );
+	}
+
+	$name   = isset( $_POST['name'] ) ? trim( preg_replace( '/[^A-Z ]/', '', strtoupper( sanitize_text_field( wp_unslash( $_POST['name'] ) ) ) ) ) : '';
+	$age    = isset( $_POST['age'] ) ? absint( $_POST['age'] ) : 0;
+	$suffix = isset( $_POST['suffix'] ) ? preg_replace( '/[^A-Z]/', '', strtoupper( sanitize_text_field( wp_unslash( $_POST['suffix'] ) ) ) ) : '';
+	$hobby  = isset( $_POST['hobby'] ) ? sanitize_text_field( wp_unslash( $_POST['hobby'] ) ) : '';
+
+	if ( '' === $name ) {
+		wp_send_json_error( [ 'message' => 'נא להזין שם באנגלית.' ] );
+	}
+	if ( $age < 1 || $age > 99 ) {
+		wp_send_json_error( [ 'message' => 'נא לבחור גיל תקין.' ] );
+	}
+
+	require_once ABSPATH . 'wp-admin/includes/file.php';
+	$upload = wp_handle_upload(
+		$_FILES['image'], // phpcs:ignore WordPress.Security.ValidatedSanitizedInput
 		[
-			'preview_url' => $preview_url,
-			'prompt'      => $final_prompt,
+			'test_form' => false,
+			'mimes'     => [
+				'jpg|jpeg|jpe' => 'image/jpeg',
+				'png'          => 'image/png',
+				'webp'         => 'image/webp',
+			],
 		]
 	);
+	// phpcs:enable
+
+	if ( isset( $upload['error'] ) ) {
+		wp_send_json_error( [ 'message' => 'שגיאה בשמירת התמונה: ' . $upload['error'] ] );
+	}
+
+	$job_id = wp_generate_password( 24, false );
+	cornflex_box_set_job(
+		$job_id,
+		[
+			'status'  => 'processing',
+			'started' => time(),
+		]
+	);
+
+	cornflex_box_respond_and_continue( [ 'job' => $job_id ] );
+
+	$result = cornflex_box_run_generation(
+		[
+			'name'        => $name,
+			'age'         => $age,
+			'suffix'      => '' === $suffix ? 'FLAKES' : $suffix,
+			'hobby'       => '' === $hobby ? 'Classic cheerful breakfast cereal morning fun' : $hobby,
+			'source_path' => $upload['file'],
+			'source_url'  => $upload['url'],
+		]
+	);
+
+	cornflex_box_set_job(
+		$job_id,
+		isset( $result['preview_url'] )
+			? [ 'status' => 'done', 'preview_url' => $result['preview_url'] ]
+			: [ 'status' => 'error', 'message' => $result['message'] ]
+	);
+
+	exit;
 }
 add_action( 'wp_ajax_cbg_generate', 'cornflex_box_handle_generate' );
 add_action( 'wp_ajax_nopriv_cbg_generate', 'cornflex_box_handle_generate' );
+
+/**
+ * AJAX: status of a generation job.
+ *
+ * GET/POST: job.
+ * Success: { status: processing } | { status: done, preview_url } | { status: error, message }.
+ *
+ * @return void
+ */
+function cornflex_box_handle_job_status() {
+	$job_id = isset( $_REQUEST['job'] ) ? preg_replace( '/[^A-Za-z0-9]/', '', wp_unslash( $_REQUEST['job'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification, WordPress.Security.ValidatedSanitizedInput
+	$job    = $job_id ? cornflex_box_get_job( $job_id ) : false;
+
+	if ( ! $job ) {
+		wp_send_json_success(
+			[
+				'status'  => 'error',
+				'message' => 'משהו השתבש ביצירת הקופסה. נסו שוב.',
+			]
+		);
+	}
+
+	if ( 'processing' === $job['status'] && time() - (int) $job['started'] > CORNFLEX_BOX_JOB_TIMEOUT ) {
+		$job = [
+			'status'  => 'error',
+			'message' => 'היצירה לקחה יותר מדי זמן. נסו שוב.',
+		];
+	}
+
+	unset( $job['started'] );
+	wp_send_json_success( $job );
+}
+add_action( 'wp_ajax_cbg_job_status', 'cornflex_box_handle_job_status' );
+add_action( 'wp_ajax_nopriv_cbg_job_status', 'cornflex_box_handle_job_status' );

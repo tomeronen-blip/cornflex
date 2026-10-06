@@ -10,6 +10,9 @@
 	var MAX_FILE_SIZE = 10 * 1024 * 1024;
 	var LAST_STEP = 4;
 	var ESTIMATE_SECONDS = 120;
+	var POLL_INTERVAL_MS = 3000;
+	// A bit longer than the server's own 6-minute job timeout.
+	var POLL_GIVE_UP_MS = 7 * 60 * 1000;
 	// Spread evenly over the estimate; the last one stays until the box is ready.
 	var LOADER_MESSAGES = [
 		'התמונה בפנים...',
@@ -260,34 +263,113 @@
 		data.append('hobby', $('cdp_hobby').value.trim());
 		data.append('access_code', state.accessCode);
 
+		function finish() {
+			clearInterval(ticker);
+			state.busy = false;
+		}
+
+		function fail(message) {
+			finish();
+			setGeneratingView(false);
+			showError(message);
+		}
+
+		// Start the job; the server answers right away and keeps working.
 		fetch(config.ajaxUrl, { method: 'POST', body: data, credentials: 'same-origin' })
 			.then(function (res) {
 				return res.json();
 			})
 			.then(function (res) {
-				if (res && res.success) {
-					showResult(res.data.preview_url);
+				if (res && res.success && res.data && res.data.job) {
+					pollJob(res.data.job, function (url) {
+						finish();
+						showResult(url);
+					}, fail);
 					return;
 				}
 
 				var err = (res && res.data) || {};
-				setGeneratingView(false);
-
 				if (err.code === 'access_code') {
+					finish();
+					setGeneratingView(false);
 					state.accessCode = '';
 					openCodeModal(true);
 					return;
 				}
-				showError(err.message || 'משהו השתבש ביצירת הקופסה. נסו שוב.');
+				fail(err.message || 'משהו השתבש ביצירת הקופסה. נסו שוב.');
 			})
 			.catch(function () {
-				setGeneratingView(false);
-				showError('לא הצלחנו להתחבר לשרת. בדקו את החיבור ונסו שוב.');
-			})
-			.then(function () {
-				clearInterval(ticker);
-				state.busy = false;
+				fail('לא הצלחנו להתחבר לשרת. בדקו את החיבור ונסו שוב.');
 			});
+	}
+
+	/**
+	 * Ask the server every few seconds whether the job is done.
+	 *
+	 * A failed check (offline, tab paused in the background) is just retried,
+	 * and coming back to the tab checks right away.
+	 */
+	function pollJob(jobId, onDone, onError) {
+		var startedAt = Date.now();
+		var timer = null;
+		var finished = false;
+
+		function stop() {
+			finished = true;
+			clearTimeout(timer);
+			document.removeEventListener('visibilitychange', onVisible);
+		}
+
+		function schedule() {
+			if (finished) {
+				return;
+			}
+			if (Date.now() - startedAt > POLL_GIVE_UP_MS) {
+				stop();
+				onError('היצירה לקחה יותר מדי זמן. נסו שוב.');
+				return;
+			}
+			clearTimeout(timer);
+			timer = setTimeout(check, POLL_INTERVAL_MS);
+		}
+
+		function check() {
+			if (finished) {
+				return;
+			}
+			var url = config.ajaxUrl + '?action=cbg_job_status&job=' + encodeURIComponent(jobId) + '&_=' + Date.now();
+
+			fetch(url, { credentials: 'same-origin', cache: 'no-store' })
+				.then(function (res) {
+					return res.json();
+				})
+				.then(function (res) {
+					var job = (res && res.data) || {};
+					if (finished) {
+						return;
+					}
+					if (job.status === 'done') {
+						stop();
+						onDone(job.preview_url);
+					} else if (job.status === 'error') {
+						stop();
+						onError(job.message || 'משהו השתבש ביצירת הקופסה. נסו שוב.');
+					} else {
+						schedule();
+					}
+				})
+				.catch(schedule);
+		}
+
+		function onVisible() {
+			if (document.visibilityState === 'visible') {
+				clearTimeout(timer);
+				check();
+			}
+		}
+
+		document.addEventListener('visibilitychange', onVisible);
+		schedule();
 	}
 
 	function formatTime(seconds) {
