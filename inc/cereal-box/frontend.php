@@ -331,18 +331,7 @@ function cornflex_box_render() {
 								<div style="font-size: 22px; font-weight: 800; color: #ffffff; margin-bottom: 6px;">הקופסה שלכם מוכנה. מה אומרים?</div>
 								<div style="font-size: 14.5px; color: #cbd5e1; margin-bottom: 18px;">ככה היא הולכת להיראות. אהבתם? בואו נשלח אותה אליכם.</div>
 
-								<div class="box-container">
-									<div class="cereal-box">
-										<div class="face face-front">
-											<img id="cdp_result_display" src="" alt="קופסת קורנפלקס אישית" draggable="false">
-										</div>
-										<div class="face face-back"></div>
-										<div class="face face-left"></div>
-										<div class="face face-right"></div>
-										<div class="face face-top"></div>
-										<div class="face face-bottom"></div>
-									</div>
-								</div>
+								<img id="cdp_result_display" class="cdp-result-img" src="" alt="קופסת קורנפלקס אישית" draggable="false" oncontextmenu="return false;">
 
 								<button type="button" class="cdp-btn-solid-red" data-cdp="order">
 									<span>אני רוצה אותה הביתה</span>

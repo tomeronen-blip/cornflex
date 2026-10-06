@@ -1,8 +1,4 @@
 .cdp-wrapper {
-    --box-width: 240px;
-    --box-height: 360px;
-    --box-depth: 85px;
-    --brand-color: #0c3b9c;
     /* Background / overlay color from the admin, as an "r, g, b" triplet. */
     --cdp-bg-rgb: 5, 5, 7;
     --cdp-overlay: 0.78;
@@ -624,123 +620,16 @@
     width: 100%;
 }
 
-.box-container {
-    perspective: 2000px !important;
-    perspective-origin: 50% 30% !important;
-    display: flex !important;
-    justify-content: center !important;
-    align-items: center !important;
-    position: relative !important;
-    margin: 20px 0 45px 0 !important;
-    padding: 10px 0 !important;
-}
-
-.cereal-box {
-    position: relative !important;
-    width: var(--box-width) !important;
-    height: var(--box-height) !important;
-    transform-style: preserve-3d !important;
-    transform: rotateY(-26deg) rotateX(12deg) !important;
-}
-
-.face {
-    position: absolute !important;
-    box-sizing: border-box !important;
-    backface-visibility: hidden !important;
-    overflow: hidden !important;
-}
-
-.face-front {
-    width: var(--box-width) !important;
-    height: var(--box-height) !important;
-    top: 0 !important;
-    left: 0 !important;
-    transform: translateZ(calc(var(--box-depth) / 2)) !important;
-    box-shadow: 
-        inset 0 3px 4px rgba(255, 255, 255, 0.45),
-        inset 0 -3px 5px rgba(0, 0, 0, 0.35) !important;
-}
-
-.face-front img {
-    width: 100% !important;
-    height: 100% !important;
-    aspect-ratio: 2 / 3 !important;
-    object-fit: cover !important;
-    display: block !important;
-}
-
-.face-left {
-    width: var(--box-depth) !important;
-    height: var(--box-height) !important;
-    top: 0 !important;
-    left: calc((var(--box-width) - var(--box-depth)) / 2) !important;
-    transform: rotateY(-90deg) translateZ(calc(var(--box-width) / 2)) !important;
-    background-color: var(--brand-color) !important;
-    background-image: linear-gradient(
-        to right,
-        rgba(0, 0, 0, 0.6) 0%,
-        rgba(0, 0, 0, 0.15) 80%,
-        rgba(255, 255, 255, 0.25) 100%
-    ) !important;
-    box-shadow: inset 0 2px 4px rgba(255, 255, 255, 0.25) !important;
-}
-
-.face-right {
-    width: var(--box-depth) !important;
-    height: var(--box-height) !important;
-    top: 0 !important;
-    left: calc((var(--box-width) - var(--box-depth)) / 2) !important;
-    transform: rotateY(90deg) translateZ(calc(var(--box-width) / 2)) !important;
-    background-color: var(--brand-color) !important;
-}
-
-.face-top {
-    width: var(--box-width) !important;
-    height: var(--box-depth) !important;
-    top: calc((var(--box-height) - var(--box-depth)) / 2) !important;
-    left: 0 !important;
-    transform: rotateX(90deg) translateZ(calc(var(--box-height) / 2)) !important;
-    background-color: var(--brand-color) !important;
-    background-image: linear-gradient(
-        to top,
-        rgba(255, 255, 255, 0.3) 0%,
-        rgba(0, 0, 0, 0.1) 60%,
-        rgba(0, 0, 0, 0.5) 100%
-    ) !important;
-    box-shadow: inset 0 0 6px rgba(0, 0, 0, 0.25);
-}
-
-.face-bottom {
-    width: var(--box-width) !important;
-    height: var(--box-depth) !important;
-    top: calc((var(--box-height) - var(--box-depth)) / 2) !important;
-    left: 0 !important;
-    transform: rotateX(-90deg) translateZ(calc(var(--box-height) / 2)) !important;
-    background-color: var(--brand-color) !important;
-    filter: brightness(0.4) !important;
-}
-
-.face-back {
-    width: var(--box-width) !important;
-    height: var(--box-height) !important;
-    top: 0 !important;
-    left: 0 !important;
-    transform: rotateY(180deg) translateZ(calc(var(--box-depth) / 2)) !important;
-    background-color: var(--brand-color) !important;
-    filter: brightness(0.4) !important;
-}
-
-.box-container::after {
-    content: "" !important;
-    position: absolute !important;
-    bottom: -45px !important;
-    left: -25px !important;
-    width: calc(var(--box-width) * 1.35) !important;
-    height: 50px !important;
-    background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0.45) 0%, rgba(0, 0, 0, 0) 70%) !important;
-    transform: rotate(-3deg) !important;
-    filter: blur(10px) !important;
-    pointer-events: none !important;
+.cdp-result-img {
+    display: block;
+    width: 100%;
+    max-width: 260px;
+    height: auto;
+    margin: 0 auto 28px;
+    border-radius: 18px;
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6);
+    user-select: none;
+    -webkit-user-drag: none;
 }
 
 .cdp-btn-retry-text {
@@ -871,10 +760,8 @@
     margin-top: 4px !important;
 }
 @media (max-width: 640px) {
-    .cdp-wrapper {
-        --box-width: 190px !important;
-        --box-height: 285px !important;
-        --box-depth: 68px !important;
+    .cdp-result-img {
+        max-width: 220px;
     }
     .cdp-main-screen {
         justify-content: flex-start !important;

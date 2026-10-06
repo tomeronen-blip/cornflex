@@ -311,41 +311,8 @@
 	function showResult(url) {
 		hide($('cdp_loader_box'));
 		$('cdp_result_display').src = url;
-		extractBrandColor(url);
 		show($('cdp_result_box'), 'flex');
 		scrollTop();
-	}
-
-	// Color the box sides with the average color of the cover's top-left corner.
-	function extractBrandColor(src) {
-		var img = new Image();
-		img.crossOrigin = 'anonymous';
-		img.onload = function () {
-			var size = 30;
-			var sample = Math.floor(size * 0.4);
-			var canvas = document.createElement('canvas');
-			var ctx = canvas.getContext('2d');
-			canvas.width = size;
-			canvas.height = size;
-
-			try {
-				ctx.drawImage(img, 0, 0, size, size);
-				var px = ctx.getImageData(0, 0, sample, sample).data;
-				var r = 0, g = 0, b = 0, n = px.length / 4;
-				for (var i = 0; i < px.length; i += 4) {
-					r += px[i];
-					g += px[i + 1];
-					b += px[i + 2];
-				}
-				document.querySelector('.cdp-wrapper').style.setProperty(
-					'--brand-color',
-					'rgb(' + Math.round(r / n) + ', ' + Math.round(g / n) + ', ' + Math.round(b / n) + ')'
-				);
-			} catch (e) {
-				// Cross-origin image: keep the default side color.
-			}
-		};
-		img.src = src;
 	}
 
 	function restart() {
