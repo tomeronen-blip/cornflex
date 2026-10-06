@@ -12,12 +12,19 @@
     min-height: 100vh;
     min-height: 100dvh;
     direction: rtl;
-    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-family: "Google Sans", system-ui, -apple-system, sans-serif;
     box-sizing: border-box;
     background: rgb(var(--cdp-bg-rgb));
     color: #ffffff;
     overflow-x: hidden;
     touch-action: pan-x pan-y;
+}
+/* One font everywhere, including buttons and inputs the theme styles on its own. */
+.cdp-wrapper,
+.cdp-wrapper *,
+.cdp-toast-modal,
+.cdp-toast-modal * {
+    font-family: "Google Sans", system-ui, -apple-system, sans-serif !important;
 }
 .cdp-wrapper * {
     box-sizing: border-box;

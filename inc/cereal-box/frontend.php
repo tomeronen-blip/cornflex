@@ -49,7 +49,9 @@ add_action( 'init', 'cornflex_box_register_shortcodes', 99 );
  * @return void
  */
 function cornflex_box_assets() {
-	wp_register_style( 'cornflex-box', CORNFLEX_BOX_URL . '/frontend.css', [], cornflex_box_asset_version( 'frontend.css' ) );
+	// Google Sans tops out at 700; heavier weights in the CSS render as 700.
+	wp_register_style( 'cornflex-box-font', 'https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;600;700&display=swap', [], null ); // phpcs:ignore WordPress.WP.EnqueuedResourceParameters.MissingVersion
+	wp_register_style( 'cornflex-box', CORNFLEX_BOX_URL . '/frontend.css', [ 'cornflex-box-font' ], cornflex_box_asset_version( 'frontend.css' ) );
 	wp_register_script( 'cornflex-box', CORNFLEX_BOX_URL . '/frontend.js', [], cornflex_box_asset_version( 'frontend.js' ), true );
 	wp_localize_script(
 		'cornflex-box',
