@@ -125,6 +125,7 @@ function cornflex_box_register_settings() {
 	register_setting( 'cbg_bg_settings_group', 'cbg_bg_overlay_color', [ 'sanitize_callback' => 'sanitize_hex_color' ] );
 	register_setting( 'cbg_bg_settings_group', 'cbg_bg_overlay_strength', [ 'sanitize_callback' => 'absint' ] );
 	register_setting( 'cbg_bg_settings_group', 'cbg_bg_overlay_strength_mobile', [ 'sanitize_callback' => 'absint' ] );
+	register_setting( 'cbg_bg_settings_group', 'cbg_bg_sides_strength', [ 'sanitize_callback' => 'absint' ] );
 	register_setting( 'cbg_bg_settings_group', 'cbg_bg_columns_desktop', [ 'sanitize_callback' => 'absint' ] );
 	register_setting( 'cbg_bg_settings_group', 'cbg_bg_speed', [ 'sanitize_callback' => 'absint' ] );
 }
