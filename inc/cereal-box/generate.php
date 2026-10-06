@@ -221,6 +221,31 @@ function cornflex_box_save_remote_image( $image_url, $child_name ) {
 }
 
 /**
+ * wp_remote_post() that retries when the connection itself fails.
+ *
+ * Only errors that happen before the request is sent are retried (DNS, connect,
+ * TLS handshake), so a generation is never sent – or billed – twice. Timeouts
+ * are not retried.
+ *
+ * @param string $url     URL.
+ * @param array  $args    wp_remote_post() args.
+ * @param int    $retries Extra attempts.
+ * @return array|WP_Error
+ */
+function cornflex_box_post_with_retry( $url, array $args, $retries = 2 ) {
+	for ( $attempt = 0; ; $attempt++ ) {
+		$res = wp_remote_post( $url, $args );
+
+		$connect_failed = is_wp_error( $res ) && preg_match( '/cURL error (6|7|35):/', $res->get_error_message() );
+		if ( ! $connect_failed || $attempt >= $retries ) {
+			return $res;
+		}
+
+		sleep( 2 );
+	}
+}
+
+/**
  * Write one row to the generations log.
  *
  * @param array $row Column => value.
@@ -384,7 +409,7 @@ Strictly convert any copyrighted brand, official football club name (e.g. Real M
 	}
 	$log['prompt_used'] = $final_prompt;
 
-	$res = wp_remote_post(
+	$res = cornflex_box_post_with_retry(
 		'https://api.atlascloud.ai/api/v1/model/generateImage',
 		[
 			'headers' => [
