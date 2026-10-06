@@ -972,3 +972,16 @@
 .cdp-code-error.visible {
     display: block;
 }
+
+/* Text that differs between mobile and desktop (intro). */
+.cdp-mobile-only {
+    display: none !important;
+}
+@media (max-width: 640px) {
+    .cdp-mobile-only {
+        display: inline !important;
+    }
+    .cdp-desktop-only {
+        display: none !important;
+    }
+}
