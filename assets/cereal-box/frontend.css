@@ -988,3 +988,35 @@ html.cdp-modal-open body {
         padding: 24px 18px 20px;
     }
 }
+
+/* Scrollbars: thin and translucent over the dark background (page + pop-ups). */
+html {
+    background: #050507;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.22) transparent;
+}
+.cdp-legal-body {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.22) transparent;
+}
+html::-webkit-scrollbar,
+.cdp-legal-body::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+html::-webkit-scrollbar-track,
+.cdp-legal-body::-webkit-scrollbar-track {
+    background: transparent;
+}
+html::-webkit-scrollbar-thumb,
+.cdp-legal-body::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.22);
+    border-radius: 999px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+}
+html::-webkit-scrollbar-thumb:hover,
+.cdp-legal-body::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.4);
+    background-clip: padding-box;
+}
