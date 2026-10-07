@@ -502,10 +502,83 @@
 	}
 
 	function showResult(url) {
+		state.resultUrl = url;
+		prepareResultFile();
 		hide($('cdp_loader_box'));
 		$('cdp_result_display').src = url;
 		show($('cdp_result_box'), 'flex');
 		scrollTop();
+	}
+
+	/* ---------- Download / share the result ---------- */
+
+	var SHARE_TEXT = 'תראו מה יצרתי בקורנפלקס! cornflex.co.il';
+
+	function resultFileName() {
+		var name = $('cdp_name').value.trim().toLowerCase().replace(/[^a-z]+/g, '-') || 'box';
+		return 'cornflex-' + name + '.jpg';
+	}
+
+	// The result image as a File, for the share sheet / download. Fetched as soon
+	// as the result shows: iPhone only opens the share sheet straight from a tap.
+	function prepareResultFile() {
+		state.resultFile = null;
+		state.resultFilePromise = fetch(state.resultUrl, { credentials: 'same-origin' })
+			.then(function (res) {
+				return res.blob();
+			})
+			.then(function (blob) {
+				state.resultFile = new File([blob], resultFileName(), { type: blob.type || 'image/jpeg' });
+				return state.resultFile;
+			});
+		state.resultFilePromise.catch(function () {});
+	}
+
+	function canShareFile(file) {
+		return !!(file && navigator.canShare && navigator.share && navigator.canShare({ files: [file] }));
+	}
+
+	function isMobile() {
+		return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+	}
+
+	function saveFile(file) {
+		var link = document.createElement('a');
+		link.href = URL.createObjectURL(file);
+		link.download = file.name;
+		document.body.appendChild(link);
+		link.click();
+		setTimeout(function () {
+			URL.revokeObjectURL(link.href);
+			link.remove();
+		}, 1000);
+	}
+
+	// Phone: the share sheet ("Save image" puts it in the gallery). Computer: a file download.
+	function downloadResult() {
+		var file = state.resultFile;
+
+		if (file && isMobile() && canShareFile(file)) {
+			navigator.share({ files: [file] }).catch(function () {});
+		} else if (file) {
+			saveFile(file);
+		} else {
+			// Not fetched yet (or failed): open the image itself.
+			window.open(state.resultUrl, '_blank');
+		}
+	}
+
+	// Phone: share the image itself with the text (pick WhatsApp in the sheet).
+	// Otherwise: WhatsApp with the text and a link to the image.
+	function shareResult() {
+		var file = state.resultFile;
+
+		if (isMobile() && canShareFile(file)) {
+			navigator.share({ files: [file], text: SHARE_TEXT }).catch(function () {});
+			return;
+		}
+
+		window.open('https://wa.me/?text=' + encodeURIComponent(SHARE_TEXT + '\n' + state.resultUrl), '_blank');
 	}
 
 	function restart() {
@@ -568,6 +641,8 @@
 				changeAge(parseInt(btn.getAttribute('data-diff'), 10));
 			},
 			suffix: selectSuffix,
+			download: downloadResult,
+			share: shareResult,
 			legal: function (link) {
 				showLegal(link.getAttribute('data-legal'));
 			},

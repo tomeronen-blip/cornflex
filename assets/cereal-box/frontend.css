@@ -629,9 +629,9 @@
     /* !important: the theme's img rules otherwise win (size and corners). */
     display: block !important;
     width: 100% !important;
-    max-width: 180px !important;
+    max-width: 220px !important;
     height: auto !important;
-    margin: 0 auto 24px !important;
+    margin: 0 auto !important;
     border-radius: 16px !important;
     box-shadow: 0 12px 30px rgba(0, 0, 0, 0.6) !important;
     user-select: none;
@@ -767,7 +767,7 @@
 }
 @media (max-width: 640px) {
     .cdp-result-img {
-        max-width: 150px !important;
+        max-width: 190px !important;
         border-radius: 14px !important;
     }
     .cdp-main-screen {
@@ -1024,4 +1024,53 @@ html::-webkit-scrollbar-thumb:hover,
 .cdp-legal-body::-webkit-scrollbar-thumb:hover {
     background: rgba(255, 255, 255, 0.4);
     background-clip: padding-box;
+}
+
+/* Result image with download / WhatsApp buttons on its bottom corner. */
+.cdp-result-media {
+    position: relative;
+    width: fit-content;
+    margin: 0 auto 24px;
+}
+.cdp-result-actions {
+    position: absolute;
+    bottom: 10px;
+    left: 10px;
+    display: flex;
+    gap: 8px;
+}
+.cdp-icon-btn {
+    width: 40px !important;
+    height: 40px !important;
+    padding: 0 !important;
+    border-radius: 50% !important;
+    border: 1px solid rgba(255, 255, 255, 0.25) !important;
+    background: rgba(10, 10, 14, 0.62) !important;
+    color: #ffffff !important;
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(8px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4) !important;
+    touch-action: manipulation;
+    transition: background 0.15s ease, transform 0.15s ease;
+}
+.cdp-icon-btn:hover {
+    background: rgba(10, 10, 14, 0.8) !important;
+}
+.cdp-icon-btn:active {
+    transform: scale(0.94);
+}
+.cdp-icon-btn-wa {
+    background: rgba(37, 211, 102, 0.92) !important;
+    border-color: rgba(255, 255, 255, 0.35) !important;
+}
+.cdp-icon-btn-wa:hover {
+    background: rgba(37, 211, 102, 1) !important;
+}
+.cdp-icon-btn[disabled] {
+    opacity: 0.6;
+    cursor: wait;
 }
