@@ -590,6 +590,41 @@ add_action( 'wp_ajax_cbg_generate', 'cornflex_box_handle_generate' );
 add_action( 'wp_ajax_nopriv_cbg_generate', 'cornflex_box_handle_generate' );
 
 /**
+ * AJAX: the browser reports a failure it couldn't recover from.
+ *
+ * Kept in the cornflex_box_client_errors option (last 50) for diagnosis.
+ *
+ * @return void
+ */
+function cornflex_box_handle_client_error() {
+	// phpcs:disable WordPress.Security.NonceVerification -- public diagnostics, stored as plain text only.
+	$field = function ( $key, $len ) {
+		return isset( $_POST[ $key ] ) ? mb_substr( sanitize_text_field( wp_unslash( $_POST[ $key ] ) ), 0, $len ) : '';
+	};
+
+	$entry = [
+		'time'          => current_time( 'mysql' ),
+		'stage'         => $field( 'stage', 20 ),
+		'status'        => $field( 'status', 10 ),
+		'body'          => $field( 'body', 300 ),
+		'file_size'     => $field( 'file_size', 20 ),
+		'file_type'     => $field( 'file_type', 40 ),
+		'original_size' => $field( 'original_size', 20 ),
+		'online'        => $field( 'online', 1 ),
+		'ua'            => isset( $_SERVER['HTTP_USER_AGENT'] ) ? mb_substr( sanitize_text_field( wp_unslash( $_SERVER['HTTP_USER_AGENT'] ) ), 0, 200 ) : '',
+	];
+	// phpcs:enable
+
+	$log   = (array) get_option( 'cornflex_box_client_errors', [] );
+	$log[] = $entry;
+	update_option( 'cornflex_box_client_errors', array_slice( $log, -50 ), false );
+
+	wp_send_json_success();
+}
+add_action( 'wp_ajax_cbg_client_error', 'cornflex_box_handle_client_error' );
+add_action( 'wp_ajax_nopriv_cbg_client_error', 'cornflex_box_handle_client_error' );
+
+/**
  * AJAX: where a job stands (and move it forward one step).
  *
  * GET: job.

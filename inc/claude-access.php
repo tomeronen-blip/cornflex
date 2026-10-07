@@ -145,6 +145,13 @@ function claude_access_register_routes() {
 					'db_prefix'  => $wpdb->prefix,
 					'theme'      => get_stylesheet(),
 					'plugins'    => get_option( 'active_plugins' ),
+					'limits'     => [
+						'upload_max_filesize' => ini_get( 'upload_max_filesize' ),
+						'post_max_size'       => ini_get( 'post_max_size' ),
+						'memory_limit'        => ini_get( 'memory_limit' ),
+						'max_execution_time'  => ini_get( 'max_execution_time' ),
+						'finish_request'      => function_exists( 'fastcgi_finish_request' ) ? 'fastcgi' : ( function_exists( 'litespeed_finish_request' ) ? 'litespeed' : 'none' ),
+					],
 				];
 			},
 		]

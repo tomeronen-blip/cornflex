@@ -271,21 +271,12 @@
 		}
 
 		// Start the job; the server answers right away and keeps working.
+		var sent = null;
+
 		shrinkPhoto(state.file)
 			.then(function (photo) {
-				var data = new FormData();
-				data.append('action', 'cbg_generate');
-				data.append('image', photo, photo.name || 'photo.jpg');
-				data.append('name', $('cdp_name').value.trim());
-				data.append('age', state.age);
-				data.append('suffix', state.suffix);
-				data.append('hobby', $('cdp_hobby').value.trim());
-				data.append('access_code', state.accessCode);
-
-				return fetch(config.ajaxUrl, { method: 'POST', body: data, credentials: 'same-origin' });
-			})
-			.then(function (res) {
-				return res.json();
+				sent = photo;
+				return startJob(photo, 1);
 			})
 			.then(function (res) {
 				if (res && res.success && res.data && res.data.job) {
@@ -308,9 +299,69 @@
 				}
 				fail(err.message || 'משהו השתבש ביצירת הקופסה. נסו שוב.');
 			})
-			.catch(function () {
-				fail('לא הצלחנו להתחבר לשרת. בדקו את החיבור ונסו שוב.');
+			.catch(function (err) {
+				reportError('start', err, sent);
+				fail(err && err.status === 413
+					? 'התמונה גדולה מדי. נסו תמונה אחרת.'
+					: 'לא הצלחנו להתחבר לשרת. בדקו את החיבור ונסו שוב.');
 			});
+	}
+
+	/**
+	 * Upload the photo and start the job. A failed attempt (connection drop,
+	 * an error page instead of JSON) is retried before giving up.
+	 * Rejects with { status, body } so the failure can be reported.
+	 */
+	function startJob(photo, retries) {
+		var data = new FormData();
+		data.append('action', 'cbg_generate');
+		data.append('image', photo, photo.name || 'photo.jpg');
+		data.append('name', $('cdp_name').value.trim());
+		data.append('age', state.age);
+		data.append('suffix', state.suffix);
+		data.append('hobby', $('cdp_hobby').value.trim());
+		data.append('access_code', state.accessCode);
+
+		return fetch(config.ajaxUrl, { method: 'POST', body: data, credentials: 'same-origin' })
+			.then(function (res) {
+				return res.text().then(function (text) {
+					try {
+						return JSON.parse(text);
+					} catch (e) {
+						throw { status: res.status, body: text.slice(0, 300) };
+					}
+				});
+			}, function (e) {
+				throw { status: 0, body: String(e && e.message) };
+			})
+			.catch(function (err) {
+				if (retries > 0 && err.status !== 413) {
+					return new Promise(function (resolve) {
+						setTimeout(resolve, 2000);
+					}).then(function () {
+						return startJob(photo, retries - 1);
+					});
+				}
+				throw err;
+			});
+	}
+
+	// Tell the server what went wrong, so failures can be diagnosed later.
+	function reportError(stage, err, photo) {
+		try {
+			var data = new FormData();
+			data.append('action', 'cbg_client_error');
+			data.append('stage', stage);
+			data.append('status', err && err.status !== undefined ? err.status : '');
+			data.append('body', err && err.body ? err.body : String(err));
+			data.append('file_size', photo ? photo.size : (state.file ? state.file.size : ''));
+			data.append('file_type', photo ? photo.type : (state.file ? state.file.type : ''));
+			data.append('original_size', state.file ? state.file.size : '');
+			data.append('online', navigator.onLine ? '1' : '0');
+			fetch(config.ajaxUrl, { method: 'POST', body: data, credentials: 'same-origin', keepalive: true });
+		} catch (e) {
+			// Reporting is best effort.
+		}
 	}
 
 	/**
