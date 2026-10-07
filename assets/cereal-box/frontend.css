@@ -958,9 +958,14 @@ html.cdp-modal-open body {
     padding-right: 20px;
     padding-left: 0;
 }
-.cdp-legal-body a {
-    color: #ffffff;
-    text-decoration: underline;
+/* White and underlined in every state; the theme's own link hover color was winning. */
+.cdp-legal-body a,
+.cdp-legal-body a:hover,
+.cdp-legal-body a:focus,
+.cdp-legal-body a:active,
+.cdp-legal-body a:visited {
+    color: #ffffff !important;
+    text-decoration: underline !important;
 }
 .cdp-legal-close {
     position: absolute;
