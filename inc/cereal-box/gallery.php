@@ -77,6 +77,25 @@ function cornflex_box_lean_version( $url ) {
 }
 
 /**
+ * The cereal type chosen. Older rows didn't store it, so read it from the
+ * prompt's logo line ("NAME SUFFIX").
+ *
+ * @param array $row Log row.
+ * @return string
+ */
+function cornflex_box_row_suffix( array $row ) {
+	if ( ! empty( $row['suffix'] ) ) {
+		return $row['suffix'];
+	}
+
+	if ( $row['child_name'] && preg_match( '/' . preg_quote( $row['child_name'], '/' ) . '\s+([A-Z]{3,})\b/', (string) $row['prompt_used'], $m ) ) {
+		return $m[1];
+	}
+
+	return '';
+}
+
+/**
  * A generation log row by ID.
  *
  * @param int $id Row ID.
@@ -287,18 +306,35 @@ function cornflex_box_gallery_page() {
 								<img src="<?php echo esc_url( $thumb ? $thumb : $row['result_image_url'] ); ?>" loading="lazy" alt="<?php echo esc_attr( $row['child_name'] ); ?>">
 							</button>
 						<?php else : ?>
-							<div class="cbx-thumb cbx-thumb-empty">
-								<?php if ( $row['source_image_url'] ) : ?>
-									<img src="<?php echo esc_url( $row['source_image_url'] ); ?>" loading="lazy" alt="">
-								<?php endif; ?>
-								<span>לא הופק</span>
-							</div>
+							<?php // The original photo is full size; it loads only via "תמונת מקור". ?>
+							<div class="cbx-thumb cbx-thumb-empty"><span>לא הופק</span></div>
 						<?php endif; ?>
 
 						<div class="cbx-info">
 							<div class="cbx-name"><?php echo esc_html( $row['child_name'] ); ?> <span>(<?php echo esc_html( $row['child_age'] ); ?>)</span></div>
-							<div class="cbx-meta"><?php echo esc_html( $row['hobby'] ); ?></div>
-							<div class="cbx-meta"><?php echo esc_html( $date ); ?> · #<?php echo esc_html( $row['id'] ); ?></div>
+							<dl class="cbx-fields">
+								<?php $suffix = cornflex_box_row_suffix( $row ); ?>
+								<?php if ( $suffix ) : ?>
+									<dt>סוג</dt><dd><?php echo esc_html( $suffix ); ?></dd>
+								<?php endif; ?>
+								<dt>אוהבים</dt><dd><?php echo esc_html( $row['hobby'] ? $row['hobby'] : '—' ); ?></dd>
+								<dt>נוצר</dt><dd><?php echo esc_html( $date ); ?> · #<?php echo esc_html( $row['id'] ); ?></dd>
+							</dl>
+
+							<div class="cbx-links">
+								<?php if ( $row['source_image_url'] ) : ?>
+									<button type="button" class="button-link" data-cbx="view" data-large="<?php echo esc_url( $row['source_image_url'] ); ?>">תמונת מקור</button>
+								<?php endif; ?>
+								<?php if ( $row['prompt_used'] ) : ?>
+									<button type="button" class="button-link" data-cbx="prompt">פרומפט</button>
+								<?php endif; ?>
+							</div>
+							<?php if ( $row['prompt_used'] ) : ?>
+								<div class="cbx-prompt" hidden>
+									<p><?php echo esc_html( $row['prompt_used'] ); ?></p>
+									<button type="button" class="button button-small" data-cbx="copy-prompt">העתקת פרומפט</button>
+								</div>
+							<?php endif; ?>
 
 							<?php if ( ! $ok && $row['error_message'] ) : ?>
 								<details class="cbx-error"><summary>סיבת השגיאה</summary><?php echo esc_html( $row['error_message'] ); ?></details>

@@ -91,6 +91,7 @@ function cornflex_box_maybe_install() {
 				prompt_used text NOT NULL,
 				status varchar(50) DEFAULT 'success' NOT NULL,
 				error_message text NOT NULL,
+				suffix varchar(30) DEFAULT '' NOT NULL,
 				PRIMARY KEY  (id)
 			) $charset_collate;"
 		);
@@ -101,6 +102,9 @@ function cornflex_box_maybe_install() {
 		}
 		if ( ! in_array( 'error_message', $columns, true ) ) {
 			$wpdb->query( "ALTER TABLE $table ADD COLUMN error_message text NOT NULL" ); // phpcs:ignore WordPress.DB
+		}
+		if ( ! in_array( 'suffix', $columns, true ) ) {
+			$wpdb->query( "ALTER TABLE $table ADD COLUMN suffix varchar(30) DEFAULT '' NOT NULL" ); // phpcs:ignore WordPress.DB
 		}
 	}
 
@@ -113,7 +117,7 @@ add_action( 'admin_init', 'cornflex_box_maybe_install' );
 /**
  * Schema version of the tables this module owns. Bump to re-run the install.
  */
-const CORNFLEX_BOX_DB_VERSION = '3';
+const CORNFLEX_BOX_DB_VERSION = '4';
 
 /**
  * Create/upgrade tables on the first request after a theme update – on the

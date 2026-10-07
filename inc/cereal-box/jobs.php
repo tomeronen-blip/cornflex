@@ -195,6 +195,7 @@ function cornflex_box_job_log_row( array $job ) {
 		'child_name'       => $job['input']['name'],
 		'child_age'        => $job['input']['age'],
 		'hobby'            => $job['input']['hobby'],
+		'suffix'           => $job['input']['suffix'],
 		'source_image_url' => $job['input']['source_url'],
 		'prompt_used'      => $job['prompt'],
 	];

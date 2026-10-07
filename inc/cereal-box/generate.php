@@ -221,6 +221,7 @@ function cornflex_box_log( array $row ) {
 				'child_name'       => '',
 				'child_age'        => 0,
 				'hobby'            => '',
+				'suffix'           => '',
 				'source_image_url' => '',
 				'result_image_url' => '',
 				'prompt_used'      => '',

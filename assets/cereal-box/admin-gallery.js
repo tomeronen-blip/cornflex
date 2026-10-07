@@ -80,7 +80,14 @@
 
 		var action = el.getAttribute('data-cbx');
 
-		if (action === 'view') {
+		if (action === 'prompt') {
+			var box = el.closest('.cbx-card').querySelector('.cbx-prompt');
+			box.hidden = !box.hidden;
+		} else if (action === 'copy-prompt') {
+			copyText(el.closest('.cbx-prompt').querySelector('p').textContent).then(function () {
+				showToast('הפרומפט הועתק');
+			});
+		} else if (action === 'view') {
 			openLightbox(el.getAttribute('data-large'));
 		} else if (action === 'close') {
 			closeLightbox();
