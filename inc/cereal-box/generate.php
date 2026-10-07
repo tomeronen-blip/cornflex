@@ -98,28 +98,31 @@ HAS_PERSON: [YES or NO]
 IS_SAFE: [YES or NO]
 (IS_SAFE means NO nudity, NO porn, NO sexual content, NO violence, completely suitable for a kids cereal box).";
 
-	$res = cornflex_box_gemini_post(
-		'gemini-3.8-flash',
-		[
-			'contents' => [
-				[
-					'parts' => [
-						[ 'text' => $prompt ],
-						[
-							'inline_data' => [
-								'mime_type' => $mime ? $mime : 'image/jpeg',
-								'data'      => base64_encode( file_get_contents( $image_path ) ), // phpcs:ignore WordPress.WP.AlternativeFunctions
-							],
+	$payload = [
+		'contents' => [
+			[
+				'parts' => [
+					[ 'text' => $prompt ],
+					[
+						'inline_data' => [
+							'mime_type' => $mime ? $mime : 'image/jpeg',
+							'data'      => base64_encode( file_get_contents( $image_path ) ), // phpcs:ignore WordPress.WP.AlternativeFunctions
 						],
 					],
 				],
 			],
 		],
-		$gemini_key,
-		15
-	);
+	];
 
-	if ( is_wp_error( $res ) ) {
+	// The lighter model has a separate (and larger) quota, so it covers for the main one.
+	foreach ( [ 'gemini-3.8-flash', 'gemini-3.5-flash-lite' ] as $model ) {
+		$res = cornflex_box_gemini_post( $model, $payload, $gemini_key, 15 );
+		if ( ! is_wp_error( $res ) && 200 === (int) wp_remote_retrieve_response_code( $res ) ) {
+			break;
+		}
+	}
+
+	if ( is_wp_error( $res ) || 200 !== (int) wp_remote_retrieve_response_code( $res ) ) {
 		return true;
 	}
 
@@ -385,6 +388,7 @@ Never use these words or ideas anywhere in the output, not even in a negative se
 
 CRITICAL SAFETY & COPYRIGHT RULE:
 Strictly convert any copyrighted brand, official football club name (e.g. Real Madrid, Barcelona, Liverpool, Maccabi), Disney, Marvel, Lego, or trademarked characters into safe, descriptive generic equivalents (e.g. describe team jersey colors, stadium atmosphere, soccer balls, superhero gear) without ever using the trademarked or copyrighted brand names.
+For a character from a movie, series, game or toy (e.g. Minions, Frozen, Paw Patrol, Spider-Man, Pokemon, Mario, Barbie): do NOT describe the character or anything that looks like it (no look-alike creatures, outfits or signature features). Use only the general mood it suggests, through colors, props and atmosphere (e.g. for Minions: a playful, mischievous, sunny yellow-and-blue color palette with bananas and goggles as small background props, and no creatures or characters).
 
 Keep the child's likeness, age, theme and the exact title text from the base prompt. Translate any non-English text (except the title) into English. Output ONLY the raw final English prompt without quotes, markdown, or chat text.
 
@@ -395,7 +399,32 @@ Base prompt: " . $base_prompt;
 		$prompt = cornflex_box_gemini_text( 'gemini-3.5-flash-lite', $instruction, $gemini_key );
 	}
 
-	return $prompt ? $prompt : $base_prompt;
+	return cornflex_box_strip_mockup_words( $prompt ? $prompt : $base_prompt );
+}
+
+/**
+ * Drop "no box / no mockup / no white background…" sentences from a prompt.
+ *
+ * Image models tend to draw what a prompt names, even after "no", and Gemini
+ * doesn't always remove them. Only sentences that are restrictions ("no",
+ * "without", "avoid") and name one of these things are dropped.
+ *
+ * @param string $prompt Prompt.
+ * @return string
+ */
+function cornflex_box_strip_mockup_words( $prompt ) {
+	$things    = '(box|boxes|package|packaging|carton|cardboard|mock-?ups?|product (shot|photo|mockup)|side flaps?|side panels?|borders?|margins?|white (space|background)|drop shadows?|3d object)';
+	$sentences = preg_split( '/(?<=[.!?])\s+|\n+/', trim( $prompt ) );
+
+	$kept = array_filter(
+		$sentences,
+		function ( $sentence ) use ( $things ) {
+			$is_restriction = preg_match( '/\b(no|not|without|avoid|never|absolutely no)\b/i', $sentence );
+			return ! ( $is_restriction && preg_match( '/\b' . $things . '\b/i', $sentence ) );
+		}
+	);
+
+	return implode( ' ', $kept );
 }
 
 /**

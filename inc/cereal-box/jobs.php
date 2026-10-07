@@ -261,7 +261,7 @@ function cornflex_box_job_prepare( array $job ) {
 
 	// Moderation and the prompt only need to run once, even if Atlas asks us to retry.
 	if ( '' === $job['prompt'] ) {
-		$moderation = cornflex_box_moderate_image( $input['source_path'], $gemini_key );
+		$moderation = empty( $input['safe'] ) ? cornflex_box_moderate_image( $input['source_path'], $gemini_key ) : true;
 		if ( true !== $moderation ) {
 			wp_delete_file( $input['source_path'] );
 			cornflex_box_job_fail( $job, $moderation );
@@ -303,7 +303,75 @@ function cornflex_box_job_prepare( array $job ) {
 		return;
 	}
 
-	cornflex_box_job_fail( $job, 'שגיאה ביצירת הקופסה. נסו שוב בעוד רגע.', $submit['error'] );
+	if ( cornflex_box_job_retry_safe( $job, $submit['error'] ) ) {
+		return;
+	}
+
+	cornflex_box_job_fail( $job, cornflex_box_failure_message( $submit['error'] ), $submit['error'] );
+}
+
+/**
+ * Was this blocked by the provider's copyright / content policy?
+ *
+ * @param string $error Error text from Atlas.
+ * @return bool
+ */
+function cornflex_box_is_policy_block( $error ) {
+	return (bool) preg_match( '/copyright|policy|sensitive|infring|trademark|blocked/i', (string) $error );
+}
+
+/**
+ * What to tell the visitor when a job fails for good.
+ *
+ * @param string $error Error text from Atlas.
+ * @return string
+ */
+function cornflex_box_failure_message( $error ) {
+	return cornflex_box_is_policy_block( $error )
+		? 'הנושא שבחרתם כנראה מוגן בזכויות יוצרים (דמות מסרט או סדרה). נסו נושא אחר, למשל: חלל, כדורגל, דינוזאורים או ריקוד.'
+		: 'שגיאה ביצירת הקופסה. נסו שוב בעוד רגע.';
+}
+
+/**
+ * Blocked for copyright (e.g. a character name as the hobby)? Instead of
+ * failing, start over once with a generic theme, so the child still gets a
+ * cover. The blocked attempt is logged.
+ *
+ * @param array  $job   Job.
+ * @param string $error Error text from Atlas.
+ * @return bool Whether the job was sent back for a safe retry.
+ */
+function cornflex_box_job_retry_safe( array $job, $error ) {
+	if ( ! cornflex_box_is_policy_block( $error ) || ! empty( $job['input']['safe'] ) ) {
+		return false;
+	}
+
+	cornflex_box_log(
+		cornflex_box_job_log_row( $job ) + [
+			'status'        => 'failed',
+			'error_message' => 'Blocked, retrying with a generic theme: ' . $error,
+		]
+	);
+
+	$input                   = $job['input'];
+	$input['safe']           = true;
+	$input['original_hobby'] = $input['hobby'];
+	$input['hobby']          = 'Classic cheerful breakfast cereal morning fun with bright playful colors';
+
+	cornflex_box_job_update(
+		$job['id'],
+		[
+			'status'       => 'queued',
+			'input'        => wp_json_encode( $input ),
+			'prompt'       => '',
+			'atlas_id'     => '',
+			'attempts'     => 0,
+			'not_before'   => 0,
+			'locked_until' => 0,
+		]
+	);
+
+	return true;
 }
 
 /**
@@ -338,7 +406,9 @@ function cornflex_box_job_check( array $job ) {
 	}
 
 	if ( 'failed' === $result['status'] ) {
-		cornflex_box_job_fail( $job, 'שגיאה ביצירת הקופסה. נסו שוב בעוד רגע.', $result['error'] );
+		if ( ! cornflex_box_job_retry_safe( $job, $result['error'] ) ) {
+			cornflex_box_job_fail( $job, cornflex_box_failure_message( $result['error'] ), $result['error'] );
+		}
 		return;
 	}
 
