@@ -113,7 +113,7 @@ add_action( 'admin_init', 'cornflex_box_maybe_install' );
 /**
  * Schema version of the tables this module owns. Bump to re-run the install.
  */
-const CORNFLEX_BOX_DB_VERSION = '2';
+const CORNFLEX_BOX_DB_VERSION = '3';
 
 /**
  * Create/upgrade tables on the first request after a theme update – on the
@@ -133,6 +133,16 @@ function cornflex_box_maybe_upgrade_db() {
 	// (no Gemini, no Atlas, no cost). Only readable from the database.
 	if ( ! get_option( 'cbg_mock_secret' ) ) {
 		update_option( 'cbg_mock_secret', wp_generate_password( 32, false ), false );
+	}
+
+	// v3: remove photos left by the first load test (before mock jobs deleted their own).
+	global $wpdb;
+	$mock_inputs = $wpdb->get_col( 'SELECT input FROM ' . cornflex_box_jobs_table() . " WHERE input LIKE '%\"mock\":true%'" ); // phpcs:ignore WordPress.DB
+	foreach ( $mock_inputs as $input ) {
+		$input = json_decode( $input, true );
+		if ( ! empty( $input['source_path'] ) ) {
+			wp_delete_file( $input['source_path'] );
+		}
 	}
 
 	update_option( 'cornflex_box_db_version', CORNFLEX_BOX_DB_VERSION );

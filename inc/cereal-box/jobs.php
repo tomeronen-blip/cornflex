@@ -241,6 +241,7 @@ function cornflex_box_job_prepare( array $job ) {
 	$input = $job['input'];
 
 	if ( ! empty( $input['mock'] ) ) {
+		wp_delete_file( $input['source_path'] ); // Load-test photo, not needed.
 		sleep( 2 ); // Roughly the cost of the Gemini calls.
 		cornflex_box_job_update(
 			$job['id'],
