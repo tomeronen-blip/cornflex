@@ -63,7 +63,6 @@ add_action( 'init', 'cornflex_box_register_shortcodes', 99 );
  * @return void
  */
 function cornflex_box_assets() {
-	// Google Sans (400/500/700) is loaded site-wide from the WPCode header.
 	wp_register_style( 'cornflex-box', CORNFLEX_BOX_URL . '/frontend.css', [], cornflex_box_asset_version( 'frontend.css' ) );
 	wp_register_script( 'cornflex-box', CORNFLEX_BOX_URL . '/frontend.js', [], cornflex_box_asset_version( 'frontend.js' ), true );
 	wp_localize_script(
