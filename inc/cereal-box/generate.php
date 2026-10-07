@@ -388,7 +388,11 @@ Never use these words or ideas anywhere in the output, not even in a negative se
 
 CRITICAL SAFETY & COPYRIGHT RULE:
 Strictly convert any copyrighted brand, official football club name (e.g. Real Madrid, Barcelona, Liverpool, Maccabi), Disney, Marvel, Lego, or trademarked characters into safe, descriptive generic equivalents (e.g. describe team jersey colors, stadium atmosphere, soccer balls, superhero gear) without ever using the trademarked or copyrighted brand names.
-For a character from a movie, series, game or toy (e.g. Minions, Frozen, Paw Patrol, Spider-Man, Pokemon, Mario, Barbie): do NOT describe the character or anything that looks like it (no look-alike creatures, outfits or signature features). Use only the general mood it suggests, through colors, props and atmosphere (e.g. for Minions: a playful, mischievous, sunny yellow-and-blue color palette with bananas and goggles as small background props, and no creatures or characters).
+For a character from a movie, series, game or toy (e.g. Minions, Frozen, Paw Patrol, Spider-Man, Pokemon, Mario, Barbie): never draw the character itself or any creature or figure that looks like it, and never use its name. Instead, bring its world to the CHILD and the background: dress the child in the character's signature outfit elements and colors, and fill the background with its typical props, color palette and energy. Examples:
+- Minions: the child wears round silver goggles and denim overalls over a bright yellow shirt; playful mischief, bananas flying around, a sunny yellow-and-blue palette.
+- Frozen: the child wears an icy blue sparkly gown or cape; snowflakes, ice crystals, a winter wonderland palette.
+- Spider-Man: the child wears a red-and-blue superhero suit with a web pattern; city skyline, web lines.
+Do not add any other people, creatures or characters to the image.
 
 Keep the child's likeness, age, theme and the exact title text from the base prompt. Translate any non-English text (except the title) into English. Output ONLY the raw final English prompt without quotes, markdown, or chat text.
 
