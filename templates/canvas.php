@@ -24,6 +24,9 @@ if ( ! defined( 'ABSPATH' ) ) {
 <?php
 wp_body_open();
 
+// The content is shortcodes, not prose: don't wrap them in <p>/<br>.
+remove_filter( 'the_content', 'wpautop' );
+
 while ( have_posts() ) :
 	the_post();
 	the_content();
