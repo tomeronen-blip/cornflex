@@ -192,10 +192,99 @@ function cornflex_updater_handle() {
 		$notice = 'failed';
 	}
 
-	wp_safe_redirect( admin_url( 'admin.php?page=cornflex-updater&cornflex_update=' . $notice ) );
+	delete_transient( 'cornflex_updater_latest' );
+
+	// From the admin bar: back to the page the button was clicked on.
+	$back = isset( $_REQUEST['back'] ) ? wp_get_referer() : false; // phpcs:ignore WordPress.Security.NonceVerification
+	$back = $back ? remove_query_arg( 'cornflex_update', $back ) : admin_url( 'admin.php?page=cornflex-updater' );
+
+	wp_safe_redirect( add_query_arg( 'cornflex_update', $notice, $back ) );
 	exit;
 }
 add_action( 'admin_post_cornflex_update', 'cornflex_updater_handle' );
+
+/**
+ * Is there a newer commit on GitHub than the one deployed?
+ *
+ * Asks GitHub at most every 2 minutes (it allows 60 requests an hour).
+ *
+ * @return bool
+ */
+function cornflex_updater_has_update() {
+	$latest = get_transient( 'cornflex_updater_latest' );
+
+	if ( false === $latest ) {
+		$commit = cornflex_updater_latest_commit();
+		$latest = is_wp_error( $commit ) ? '' : $commit['sha'];
+		set_transient( 'cornflex_updater_latest', $latest, 2 * MINUTE_IN_SECONDS );
+	}
+
+	$state = get_option( CORNFLEX_UPDATER_OPTION, [] );
+
+	return '' !== $latest && ( empty( $state['sha'] ) || $state['sha'] !== $latest );
+}
+
+/**
+ * "עדכן עכשיו" in the admin bar – runs the update without opening the page.
+ *
+ * @param WP_Admin_Bar $bar Admin bar.
+ * @return void
+ */
+function cornflex_updater_admin_bar( $bar ) {
+	if ( ! current_user_can( 'manage_options' ) ) {
+		return;
+	}
+
+	$result = isset( $_GET['cornflex_update'] ) ? sanitize_key( $_GET['cornflex_update'] ) : ''; // phpcs:ignore WordPress.Security.NonceVerification
+
+	if ( 'updated' === $result ) {
+		$title = '✓ עודכן';
+	} elseif ( 'failed' === $result ) {
+		$title = '✗ העדכון נכשל';
+	} else {
+		$title = 'עדכן עכשיו';
+		if ( cornflex_updater_has_update() ) {
+			$title .= ' <span class="cornflex-update-dot" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#f43f5e;margin-right:6px;vertical-align:middle;"></span>';
+		}
+	}
+
+	$bar->add_node(
+		[
+			'id'    => 'cornflex-update',
+			'title' => $title,
+			'href'  => wp_nonce_url( admin_url( 'admin-post.php?action=cornflex_update&back=1' ), 'cornflex_updater' ),
+			'meta'  => [
+				'title'   => 'מעדכן את התבנית לגרסה האחרונה מ-GitHub',
+				'onclick' => "this.innerText = 'מעדכן...';",
+			],
+		]
+	);
+}
+add_action( 'admin_bar_menu', 'cornflex_updater_admin_bar', 100 );
+
+/**
+ * After an update from the admin bar, say how it went (the updater page has its own notice).
+ *
+ * @return void
+ */
+function cornflex_updater_admin_notice() {
+	$result = isset( $_GET['cornflex_update'] ) ? sanitize_key( $_GET['cornflex_update'] ) : ''; // phpcs:ignore WordPress.Security.NonceVerification
+	$page   = isset( $_GET['page'] ) ? sanitize_key( $_GET['page'] ) : ''; // phpcs:ignore WordPress.Security.NonceVerification
+
+	if ( '' === $result || 'cornflex-updater' === $page || ! current_user_can( 'manage_options' ) ) {
+		return;
+	}
+
+	if ( 'updated' === $result ) {
+		echo '<div class="notice notice-success is-dismissible"><p>האתר עודכן לגרסה האחרונה מ-GitHub.</p></div>';
+		return;
+	}
+
+	$error = get_transient( 'cornflex_updater_error' );
+	delete_transient( 'cornflex_updater_error' );
+	echo '<div class="notice notice-error"><p>העדכון נכשל' . ( $error ? ': ' . esc_html( $error ) : '.' ) . '</p></div>';
+}
+add_action( 'admin_notices', 'cornflex_updater_admin_notice' );
 
 /**
  * The admin page.
