@@ -178,6 +178,11 @@
     align-items: center;
     text-align: center;
     box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+    /* Clicking a card starts the journey, like the main button. No hover change. */
+    cursor: pointer;
+    touch-action: manipulation;
+    user-select: none;
+    outline: none;
 }
 .cdp-step-badge {
     width: 28px;

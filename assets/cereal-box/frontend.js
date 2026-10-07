@@ -438,6 +438,15 @@
 			}
 		});
 
+		// Non-button elements with an action (the intro cards) work from the keyboard too.
+		document.addEventListener('keydown', function (e) {
+			var el = e.target.closest('[data-cdp][role="button"]');
+			if (el && (e.key === 'Enter' || e.key === ' ') && actions[el.getAttribute('data-cdp')]) {
+				e.preventDefault();
+				actions[el.getAttribute('data-cdp')](el);
+			}
+		});
+
 		var dropzone = $('cdp_dropzone');
 		var fileInput = $('cdp_file');
 

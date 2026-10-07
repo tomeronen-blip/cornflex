@@ -216,17 +216,17 @@ function cornflex_box_render() {
 						<p class="cdp-hero-subtitle">תמונה אחת, כמה שאלות קצרות וזה בדרך אליכם.</p>
 
 						<div class="cdp-steps-row">
-							<div class="cdp-step-card">
+							<div class="cdp-step-card" data-cdp="start" role="button" tabindex="0">
 								<div class="cdp-step-badge">01</div>
 								<div class="cdp-step-text-title"><span class="cdp-desktop-only">בוחרים תמונה טובה</span><span class="cdp-mobile-only">בוחרים תמונה</span></div>
 								<div class="cdp-step-text-sub"><span class="cdp-desktop-only">שאתם הכי-הכי אוהבים</span><span class="cdp-mobile-only">שאתם הכי<br>הכי אוהבים</span></div>
 							</div>
-							<div class="cdp-step-card">
+							<div class="cdp-step-card" data-cdp="start" role="button" tabindex="0">
 								<div class="cdp-step-badge">02</div>
 								<div class="cdp-step-text-title"><span class="cdp-desktop-only">נותנים לנו כמה פרטים</span><span class="cdp-mobile-only">ממלאים פרטים</span></div>
 								<div class="cdp-step-text-sub">שם, גיל ומה <br class="cdp-mobile-only">הם אוהבים</div>
 							</div>
-							<div class="cdp-step-card">
+							<div class="cdp-step-card" data-cdp="start" role="button" tabindex="0">
 								<div class="cdp-step-badge">03</div>
 								<div class="cdp-step-text-title"><span class="cdp-desktop-only">מקבלים את הקופסה</span><span class="cdp-mobile-only">מקבלים הביתה</span></div>
 								<div class="cdp-step-text-sub">במשלוח עד <br class="cdp-mobile-only">הבית</div>
@@ -239,7 +239,7 @@ function cornflex_box_render() {
 						</button>
 
 						<div class="cdp-bottom-disclaimer">
-							קודם תראו איך הקופסה שלכם נראית. אחרי שתאשרו, נדפיס אותה ונשלח אותה אליכם.
+							קודם תראו איך הקופסה שלכם נראית. אחרי שתאשרו, <br class="cdp-mobile-only">נדפיס אותה ונשלח אותה אליכם.
 						</div>
 					</div>
 
@@ -328,8 +328,8 @@ function cornflex_box_render() {
 							</div>
 
 							<div id="cdp_result_box" class="cdp-result-wrap">
-								<div style="font-size: 22px; font-weight: 800; color: #ffffff; margin-bottom: 6px;">הקופסה שלכם מוכנה. מה אומרים?</div>
-								<div style="font-size: 14.5px; color: #cbd5e1; margin-bottom: 18px;">ככה היא הולכת להיראות. אהבתם? בואו נשלח אותה אליכם.</div>
+								<div style="font-size: 22px; font-weight: 800; color: #ffffff; margin-bottom: 6px;">הקופסה שלכם מוכנה. <br class="cdp-mobile-only">מה אומרים?</div>
+								<div style="font-size: 14.5px; color: #cbd5e1; margin-bottom: 18px;">ככה היא הולכת להיראות. אהבתם? <br class="cdp-mobile-only">בואו נשלח אותה אליכם.</div>
 
 								<img id="cdp_result_display" class="cdp-result-img" src="" alt="קופסת קורנפלקס אישית" draggable="false" oncontextmenu="return false;">
 
