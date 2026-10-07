@@ -28,6 +28,52 @@ function cornflex_updater_menu() {
 add_action( 'admin_menu', 'cornflex_updater_menu', 20 );
 
 /**
+ * Headers for GitHub requests. With a read-only token saved on the update
+ * page, the repo can be private.
+ *
+ * @return array
+ */
+function cornflex_updater_github_headers() {
+	$headers = [
+		'Accept'               => 'application/vnd.github+json',
+		'X-GitHub-Api-Version' => '2022-11-28',
+	];
+
+	$token = trim( (string) get_option( 'cornflex_updater_token', '' ) );
+	if ( '' !== $token ) {
+		$headers['Authorization'] = 'Bearer ' . $token;
+	}
+
+	return $headers;
+}
+
+/**
+ * Save the GitHub token from the update page.
+ *
+ * @return void
+ */
+function cornflex_updater_save_token() {
+	if ( ! current_user_can( 'manage_options' ) ) {
+		wp_die( 'Unauthorized' );
+	}
+	check_admin_referer( 'cornflex_updater_token' );
+
+	$token = isset( $_POST['token'] ) ? trim( sanitize_text_field( wp_unslash( $_POST['token'] ) ) ) : '';
+
+	// An empty field keeps the saved token; "remove" clears it.
+	if ( isset( $_POST['remove'] ) ) {
+		delete_option( 'cornflex_updater_token' );
+	} elseif ( '' !== $token ) {
+		update_option( 'cornflex_updater_token', $token, false );
+	}
+
+	delete_transient( 'cornflex_updater_latest' );
+	wp_safe_redirect( admin_url( 'admin.php?page=cornflex-updater&cornflex_token=saved' ) );
+	exit;
+}
+add_action( 'admin_post_cornflex_updater_token', 'cornflex_updater_save_token' );
+
+/**
  * Latest commit on the branch, from the GitHub API.
  *
  * @return array|WP_Error { sha, message, date }
@@ -37,7 +83,7 @@ function cornflex_updater_latest_commit() {
 		'https://api.github.com/repos/' . CORNFLEX_UPDATER_REPO . '/commits/' . CORNFLEX_UPDATER_BRANCH,
 		[
 			'timeout' => 15,
-			'headers' => [ 'Accept' => 'application/vnd.github+json' ],
+			'headers' => cornflex_updater_github_headers(),
 		]
 	);
 
@@ -106,9 +152,20 @@ function cornflex_updater_deploy( $sha ) {
 	$work_dir  = WP_CONTENT_DIR . '/upgrade/cornflex-' . time();
 	$backup    = $work_dir . '-backup';
 
-	$zip = download_url( 'https://codeload.github.com/' . CORNFLEX_UPDATER_REPO . '/zip/' . $sha, 120 );
-	if ( is_wp_error( $zip ) ) {
-		return $zip;
+	// The API's zipball works for private repos too (with the token).
+	$zip = wp_tempnam( 'cornflex.zip' );
+	$res = wp_remote_get(
+		'https://api.github.com/repos/' . CORNFLEX_UPDATER_REPO . '/zipball/' . $sha,
+		[
+			'timeout'  => 120,
+			'stream'   => true,
+			'filename' => $zip,
+			'headers'  => cornflex_updater_github_headers(),
+		]
+	);
+	if ( is_wp_error( $res ) || 200 !== wp_remote_retrieve_response_code( $res ) ) {
+		wp_delete_file( $zip );
+		return is_wp_error( $res ) ? $res : new WP_Error( 'github', 'ההורדה מ-GitHub נכשלה (' . wp_remote_retrieve_response_code( $res ) . ').' );
 	}
 
 	$unzipped = unzip_file( $zip, $work_dir );
@@ -341,6 +398,27 @@ function cornflex_updater_page() {
 				<input type="hidden" name="action" value="cornflex_update">
 				<?php wp_nonce_field( 'cornflex_updater' ); ?>
 				<button type="submit" class="button button-primary button-hero"<?php disabled( is_wp_error( $latest ) ); ?>>עדכן עכשיו</button>
+			</form>
+
+			<?php $has_token = '' !== trim( (string) get_option( 'cornflex_updater_token', '' ) ); ?>
+			<hr style="margin: 24px 0;">
+			<h2 style="font-size: 15px; margin: 0 0 6px;">טוקן GitHub</h2>
+			<p style="margin: 0 0 10px; color: #52525b;">
+				<?php if ( $has_token ) : ?>
+					<span style="color: #16a34a; font-weight: 600;">שמור טוקן.</span> העדכון עובד גם כשה-repo פרטי.
+				<?php else : ?>
+					<span style="color: #dc2626; font-weight: 600;">אין טוקן.</span> בלי טוקן העדכון עובד רק כשה-repo ציבורי.
+				<?php endif; ?>
+				טוקן Fine-grained עם הרשאת קריאה בלבד (Contents: Read-only) ל-<?php echo esc_html( CORNFLEX_UPDATER_REPO ); ?>.
+			</p>
+			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="display: flex; gap: 8px; flex-wrap: wrap;">
+				<input type="hidden" name="action" value="cornflex_updater_token">
+				<?php wp_nonce_field( 'cornflex_updater_token' ); ?>
+				<input type="password" name="token" autocomplete="off" placeholder="<?php echo $has_token ? 'להחלפה – הדביקו טוקן חדש' : 'github_pat_...'; ?>" style="flex: 1; min-width: 260px; direction: ltr;">
+				<button type="submit" class="button">שמירה</button>
+				<?php if ( $has_token ) : ?>
+					<button type="submit" name="remove" value="1" class="button-link-delete" style="margin-inline-start: 8px;">מחיקת הטוקן</button>
+				<?php endif; ?>
 			</form>
 
 			<p class="description" style="margin-top: 16px;">מוריד את הגרסה האחרונה מ-<?php echo esc_html( CORNFLEX_UPDATER_REPO ); ?> (<?php echo esc_html( CORNFLEX_UPDATER_BRANCH ); ?>) ומחליף את קבצי התבנית. אחרי ההחלפה נבדק שדף הבית עולה; אם לא, הגרסה הקודמת חוזרת אוטומטית.</p>

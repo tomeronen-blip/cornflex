@@ -10,11 +10,6 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 /**
- * Access code used when none has been saved yet (the plugin's hard-coded one).
- */
-define( 'CORNFLEX_BOX_DEFAULT_ACCESS_CODE', '1114' );
-
-/**
  * Default prompt template. Placeholders: {name}, {age}, {suffix}, {hobby}.
  *
  * @return string
@@ -50,7 +45,15 @@ function cornflex_box_prompt_template() {
  * @return string
  */
 function cornflex_box_access_code() {
-	return trim( (string) get_option( 'cbg_access_code', CORNFLEX_BOX_DEFAULT_ACCESS_CODE ) );
+	$code = get_option( 'cbg_access_code', false );
+
+	// Never saved: pick a random code rather than one written in the (public) code.
+	if ( false === $code ) {
+		$code = (string) wp_rand( 100000, 999999 );
+		update_option( 'cbg_access_code', $code );
+	}
+
+	return trim( (string) $code );
 }
 
 /**
