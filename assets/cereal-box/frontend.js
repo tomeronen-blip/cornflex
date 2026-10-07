@@ -407,6 +407,34 @@
 		$('cdp_toast_modal').classList.add('visible');
 	}
 
+	/* ---------- Footer pop-ups ---------- */
+
+	var openLegal = null;
+
+	function showLegal(slug) {
+		var modal = $('cdp_legal_' + slug);
+		if (!modal) {
+			return;
+		}
+		closeLegal();
+		modal.classList.add('visible');
+		modal.querySelector('.cdp-legal-body').scrollTop = 0;
+		document.documentElement.classList.add('cdp-modal-open');
+		openLegal = modal;
+	}
+
+	function closeLegal() {
+		if (!openLegal) {
+			return;
+		}
+		openLegal.classList.remove('visible');
+		document.documentElement.classList.remove('cdp-modal-open');
+		openLegal = null;
+		if (/^#(contact|privacy|accessibility)$/.test(location.hash)) {
+			history.replaceState(null, '', location.pathname + location.search);
+		}
+	}
+
 	/* ---------- Wiring ---------- */
 
 	function init() {
@@ -428,15 +456,40 @@
 			age: function (btn) {
 				changeAge(parseInt(btn.getAttribute('data-diff'), 10));
 			},
-			suffix: selectSuffix
+			suffix: selectSuffix,
+			legal: function (link) {
+				showLegal(link.getAttribute('data-legal'));
+			},
+			'legal-close': closeLegal
 		};
 
 		document.addEventListener('click', function (e) {
+			// Click on the dark backdrop around a pop-up closes it.
+			if (e.target.classList && e.target.classList.contains('cdp-legal-modal')) {
+				closeLegal();
+				return;
+			}
+
 			var btn = e.target.closest('[data-cdp]');
+			if (btn && btn.tagName === 'A') {
+				e.preventDefault();
+			}
 			if (btn && actions[btn.getAttribute('data-cdp')]) {
 				actions[btn.getAttribute('data-cdp')](btn);
 			}
 		});
+
+		document.addEventListener('keydown', function (e) {
+			if (e.key === 'Escape') {
+				closeLegal();
+			}
+		});
+
+		// Links like /#privacy open their pop-up.
+		var hash = location.hash.replace('#', '');
+		if (hash) {
+			showLegal(hash);
+		}
 
 		// Non-button elements with an action (the intro cards) work from the keyboard too.
 		document.addEventListener('keydown', function (e) {

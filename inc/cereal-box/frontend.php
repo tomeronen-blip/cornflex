@@ -22,6 +22,20 @@ if ( ! defined( 'ABSPATH' ) ) {
 const CORNFLEX_BOX_SHORTCODES = [ 'cereal_design_preview', 'cereal_box_tool' ];
 
 /**
+ * Footer pop-ups: slug (also the URL hash, e.g. /#privacy) => title.
+ * Content lives in legal/{slug}.php.
+ *
+ * @return array
+ */
+function cornflex_box_legal_pages() {
+	return [
+		'contact'       => 'יצירת קשר',
+		'privacy'       => 'מדיניות פרטיות',
+		'accessibility' => 'הצהרת נגישות',
+	];
+}
+
+/**
  * Register the shortcodes.
  *
  * Runs late on init so it wins over the old WPCode snippet if that is still active.
@@ -360,11 +374,13 @@ function cornflex_box_render() {
 					</a>
 				</div>
 				<div class="cdp-footer-links">
-					<a href="/contact">יצירת קשר</a>
-					<span class="cdp-sep">|</span>
-					<a href="/privacy-policy">מדיניות פרטיות</a>
-					<span class="cdp-sep">|</span>
-					<a href="/accessibility">הצהרת נגישות</a>
+					<?php
+					$legal_links = [];
+					foreach ( cornflex_box_legal_pages() as $slug => $title ) {
+						$legal_links[] = '<a href="#' . esc_attr( $slug ) . '" data-cdp="legal" data-legal="' . esc_attr( $slug ) . '">' . esc_html( $title ) . '</a>';
+					}
+					echo implode( '<span class="cdp-sep">|</span>', $legal_links ); // phpcs:ignore WordPress.Security.EscapeOutput
+					?>
 				</div>
 				<p class="cdp-footer-disclaimer">
 					Cornflex הוא שירות להתאמה אישית של מוצרי מתנה ומזכרות. כל הזכויות על המותג, העיצובים והטכנולוגיה שמורות. המשתמשים אחראים לכך שהתמונות והתכנים שהם מעלים מותרים לשימוש ואינם מפרים זכויות של צד שלישי.
@@ -398,6 +414,17 @@ function cornflex_box_render() {
 			</div>
 		</div>
 	</div>
+	<?php foreach ( cornflex_box_legal_pages() as $slug => $title ) : ?>
+		<div id="cdp_legal_<?php echo esc_attr( $slug ); ?>" class="cdp-toast-modal cdp-legal-modal" role="dialog" aria-modal="true" aria-labelledby="cdp_legal_<?php echo esc_attr( $slug ); ?>_title">
+			<div class="cdp-toast-card cdp-legal-card">
+				<button type="button" class="cdp-legal-close" data-cdp="legal-close" aria-label="סגירה">&times;</button>
+				<div class="cdp-toast-title" id="cdp_legal_<?php echo esc_attr( $slug ); ?>_title"><?php echo esc_html( $title ); ?></div>
+				<div class="cdp-legal-body">
+					<?php include CORNFLEX_BOX_DIR . '/legal/' . $slug . '.php'; ?>
+				</div>
+			</div>
+		</div>
+	<?php endforeach; ?>
 	<?php
 	return ob_get_clean();
 }
