@@ -32,6 +32,8 @@ function cornflex_box_gemini_post( $model, array $payload, $gemini_key, $timeout
 			]
 		);
 
+		cornflex_box_track_gemini( $res );
+
 		$busy = ! is_wp_error( $res ) && in_array( (int) wp_remote_retrieve_response_code( $res ), [ 429, 503 ], true );
 		if ( ! $busy || $attempt >= 1 ) {
 			return $res;

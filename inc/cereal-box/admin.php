@@ -79,6 +79,8 @@ function cornflex_box_settings_page() {
 		<h1>הגדרות מחולל קורנפלקס</h1>
 		<p>ניהול מפתחות API, קוד הגישה ותבנית הפרומפט המרכזית.</p>
 
+		<?php cornflex_box_balance_box(); ?>
+
 		<form method="post" action="options.php" style="background: #fff; padding: 25px; border: 1px solid #e4e4e4; border-radius: 12px; margin-top: 20px;">
 			<?php settings_fields( 'cbg_settings_group' ); ?>
 
