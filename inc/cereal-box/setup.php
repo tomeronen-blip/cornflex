@@ -111,6 +111,35 @@ function cornflex_box_maybe_install() {
 add_action( 'admin_init', 'cornflex_box_maybe_install' );
 
 /**
+ * Schema version of the tables this module owns. Bump to re-run the install.
+ */
+const CORNFLEX_BOX_DB_VERSION = '2';
+
+/**
+ * Create/upgrade tables on the first request after a theme update – on the
+ * front end too, since visitors are the ones who need the jobs table.
+ *
+ * @return void
+ */
+function cornflex_box_maybe_upgrade_db() {
+	if ( CORNFLEX_BOX_DB_VERSION === get_option( 'cornflex_box_db_version' ) ) {
+		return;
+	}
+
+	cornflex_box_maybe_install();
+	cornflex_box_install_jobs_table();
+
+	// Secret for load tests: a request carrying it runs a fake generation
+	// (no Gemini, no Atlas, no cost). Only readable from the database.
+	if ( ! get_option( 'cbg_mock_secret' ) ) {
+		update_option( 'cbg_mock_secret', wp_generate_password( 32, false ), false );
+	}
+
+	update_option( 'cornflex_box_db_version', CORNFLEX_BOX_DB_VERSION );
+}
+add_action( 'init', 'cornflex_box_maybe_upgrade_db' );
+
+/**
  * Register the settings saved through options.php.
  *
  * @return void
@@ -120,6 +149,8 @@ function cornflex_box_register_settings() {
 	register_setting( 'cbg_settings_group', 'cbg_atlas_key' );
 	register_setting( 'cbg_settings_group', 'cbg_base_prompt_template' );
 	register_setting( 'cbg_settings_group', 'cbg_access_code', [ 'sanitize_callback' => 'sanitize_text_field' ] );
+	register_setting( 'cbg_settings_group', 'cbg_max_preparing', [ 'sanitize_callback' => 'absint' ] );
+	register_setting( 'cbg_settings_group', 'cbg_max_generating', [ 'sanitize_callback' => 'absint' ] );
 
 	register_setting( 'cbg_bg_settings_group', 'cbg_bg_opacity', [ 'sanitize_callback' => 'absint' ] );
 	register_setting( 'cbg_bg_settings_group', 'cbg_bg_overlay_color', [ 'sanitize_callback' => 'sanitize_hex_color' ] );

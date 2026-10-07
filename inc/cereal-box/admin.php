@@ -112,6 +112,19 @@ function cornflex_box_settings_page() {
 				<p style="font-size: 13px; color: #71717a; margin: 5px 0 0;">הגולשים יתבקשו להזין את הקוד לפני ההפקה. השאירו ריק כדי לאפשר יצירה לכולם.</p>
 			</div>
 
+			<div style="margin-bottom: 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+				<div>
+					<label style="display: block; font-weight: 600; margin-bottom: 6px;">הכנות במקביל:</label>
+					<input type="number" name="cbg_max_preparing" min="1" max="50" value="<?php echo esc_attr( cornflex_box_max_preparing() ); ?>" style="width: 100px; padding: 6px; border-radius: 6px; border: 1px solid #dcdcdc;">
+					<p style="font-size: 13px; color: #71717a; margin: 5px 0 0;">כמה יצירות עוברות בדיקת תמונה וכתיבת פרומפט בו-זמנית (כ-10 שניות של השרת לכל אחת). לא יותר מחצי ממספר ה-PHP workers של האחסון.</p>
+				</div>
+				<div>
+					<label style="display: block; font-weight: 600; margin-bottom: 6px;">יצירות במקביל ב-Atlas:</label>
+					<input type="number" name="cbg_max_generating" min="1" max="200" value="<?php echo esc_attr( cornflex_box_max_generating() ); ?>" style="width: 100px; padding: 6px; border-radius: 6px; border: 1px solid #dcdcdc;">
+					<p style="font-size: 13px; color: #71717a; margin: 5px 0 0;">כמה יצירות רצות ב-Atlas בו-זמנית. מעבר לזה הגולשים ממתינים בתור ורואים את מקומם.</p>
+				</div>
+			</div>
+
 			<div style="margin-bottom: 20px;">
 				<label style="display: block; font-weight: 600; margin-bottom: 6px;">תבנית פרומפט הבסיס:</label>
 				<p style="font-size: 13px; color: #71717a; margin-top: 0;">משתנים דינמיים: <code>{name}</code>, <code>{age}</code>, <code>{suffix}</code>, <code>{hobby}</code></p>

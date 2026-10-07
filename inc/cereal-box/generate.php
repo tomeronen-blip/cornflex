@@ -1,8 +1,8 @@
 <?php
 /**
- * Cereal box: AI generation pipeline and its AJAX handler.
+ * Cereal box: the AI steps. jobs.php runs them as a queue.
  *
- * Upload → Gemini moderation → Gemini prompt polish → Seedream (Atlas Cloud)
+ * Gemini moderation → Gemini prompt polish → Seedream (Atlas Cloud, async)
  * → save to the media library → small preview → log.
  *
  * @package HelloElementorChild
@@ -10,6 +10,35 @@
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit; // Exit if accessed directly.
+}
+
+/**
+ * POST to Gemini, retrying once when it is busy (429/503).
+ *
+ * @param string $model      Model name.
+ * @param array  $payload    Request body.
+ * @param string $gemini_key API key.
+ * @param int    $timeout    Seconds.
+ * @return array|WP_Error
+ */
+function cornflex_box_gemini_post( $model, array $payload, $gemini_key, $timeout ) {
+	for ( $attempt = 0; ; $attempt++ ) {
+		$res = wp_remote_post(
+			'https://generativelanguage.googleapis.com/v1beta/models/' . $model . ':generateContent?key=' . $gemini_key,
+			[
+				'headers' => [ 'Content-Type' => 'application/json' ],
+				'body'    => wp_json_encode( $payload ),
+				'timeout' => $timeout,
+			]
+		);
+
+		$busy = ! is_wp_error( $res ) && in_array( (int) wp_remote_retrieve_response_code( $res ), [ 429, 503 ], true );
+		if ( ! $busy || $attempt >= 1 ) {
+			return $res;
+		}
+
+		sleep( 2 );
+	}
 }
 
 /**
@@ -21,22 +50,18 @@ if ( ! defined( 'ABSPATH' ) ) {
  * @return string|false
  */
 function cornflex_box_gemini_text( $model, $instruction, $gemini_key ) {
-	$res = wp_remote_post(
-		'https://generativelanguage.googleapis.com/v1beta/models/' . $model . ':generateContent?key=' . $gemini_key,
+	$res = cornflex_box_gemini_post(
+		$model,
 		[
-			'headers' => [ 'Content-Type' => 'application/json' ],
-			'body'    => wp_json_encode(
+			'contents' => [
 				[
-					'contents' => [
-						[
-							'role'  => 'user',
-							'parts' => [ [ 'text' => $instruction ] ],
-						],
-					],
-				]
-			),
-			'timeout' => 25,
-		]
+					'role'  => 'user',
+					'parts' => [ [ 'text' => $instruction ] ],
+				],
+			],
+		],
+		$gemini_key,
+		25
 	);
 
 	if ( is_wp_error( $res ) ) {
@@ -73,29 +98,25 @@ HAS_PERSON: [YES or NO]
 IS_SAFE: [YES or NO]
 (IS_SAFE means NO nudity, NO porn, NO sexual content, NO violence, completely suitable for a kids cereal box).";
 
-	$res = wp_remote_post(
-		'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=' . $gemini_key,
+	$res = cornflex_box_gemini_post(
+		'gemini-3.8-flash',
 		[
-			'headers' => [ 'Content-Type' => 'application/json' ],
-			'body'    => wp_json_encode(
+			'contents' => [
 				[
-					'contents' => [
+					'parts' => [
+						[ 'text' => $prompt ],
 						[
-							'parts' => [
-								[ 'text' => $prompt ],
-								[
-									'inline_data' => [
-										'mime_type' => $mime ? $mime : 'image/jpeg',
-										'data'      => base64_encode( file_get_contents( $image_path ) ), // phpcs:ignore WordPress.WP.AlternativeFunctions
-									],
-								],
+							'inline_data' => [
+								'mime_type' => $mime ? $mime : 'image/jpeg',
+								'data'      => base64_encode( file_get_contents( $image_path ) ), // phpcs:ignore WordPress.WP.AlternativeFunctions
 							],
 						],
 					],
-				]
-			),
-			'timeout' => 15,
-		]
+				],
+			],
+		],
+		$gemini_key,
+		15
 	);
 
 	if ( is_wp_error( $res ) ) {
@@ -114,45 +135,6 @@ IS_SAFE: [YES or NO]
 	}
 
 	return true;
-}
-
-/**
- * Upload a local file to Atlas Cloud media storage.
- *
- * @param string $file_path Local file path.
- * @param string $atlas_key API key.
- * @return string|false Remote URL.
- */
-function cornflex_box_atlas_upload( $file_path, $atlas_key ) {
-	if ( ! file_exists( $file_path ) || ! function_exists( 'curl_init' ) ) {
-		return false;
-	}
-
-	// phpcs:disable WordPress.WP.AlternativeFunctions -- multipart file upload.
-	$ch = curl_init();
-	curl_setopt( $ch, CURLOPT_URL, 'https://api.atlascloud.ai/api/v1/model/uploadMedia' );
-	curl_setopt( $ch, CURLOPT_POST, 1 );
-	curl_setopt( $ch, CURLOPT_POSTFIELDS, [ 'file' => new CURLFile( $file_path, mime_content_type( $file_path ), basename( $file_path ) ) ] );
-	curl_setopt( $ch, CURLOPT_RETURNTRANSFER, true );
-	curl_setopt( $ch, CURLOPT_HTTPHEADER, [ 'Authorization: Bearer ' . $atlas_key ] );
-	curl_setopt( $ch, CURLOPT_TIMEOUT, 60 );
-
-	$response  = curl_exec( $ch );
-	$http_code = curl_getinfo( $ch, CURLINFO_HTTP_CODE );
-	curl_close( $ch );
-	// phpcs:enable
-
-	if ( ! $response || $http_code >= 400 ) {
-		return false;
-	}
-
-	$data = json_decode( $response, true );
-
-	if ( ! empty( $data['url'] ) ) {
-		return $data['url'];
-	}
-
-	return ! empty( $data['data']['url'] ) ? $data['data']['url'] : false;
 }
 
 /**
@@ -296,100 +278,13 @@ function cornflex_box_atlas_output_url( $data ) {
 }
 
 /**
- * How long a job may stay "processing" before the status check calls it failed.
- */
-const CORNFLEX_BOX_JOB_TIMEOUT = 360;
-
-/**
- * Read a generation job.
+ * Build the final prompt: template → Gemini polish (brands → generic).
  *
- * @param string $job_id Job ID.
- * @return array|false
+ * @param array  $input      name, age, suffix, hobby.
+ * @param string $gemini_key API key.
+ * @return string
  */
-function cornflex_box_get_job( $job_id ) {
-	return get_transient( 'cornflex_box_job_' . $job_id );
-}
-
-/**
- * Save a generation job.
- *
- * @param string $job_id Job ID.
- * @param array  $job    Job data: status (processing|done|error), started, preview_url / message.
- * @return void
- */
-function cornflex_box_set_job( $job_id, array $job ) {
-	set_transient( 'cornflex_box_job_' . $job_id, $job, HOUR_IN_SECONDS );
-}
-
-/**
- * Send a JSON success response and close the connection, but keep running.
- *
- * Lets the long AI pipeline continue after the browser got its job ID.
- *
- * @param array $data Response data.
- * @return void
- */
-function cornflex_box_respond_and_continue( array $data ) {
-	ignore_user_abort( true );
-
-	$json = wp_json_encode(
-		[
-			'success' => true,
-			'data'    => $data,
-		]
-	);
-
-	while ( ob_get_level() > 0 ) {
-		ob_end_clean();
-	}
-
-	if ( ! headers_sent() ) {
-		header( 'Content-Type: application/json; charset=utf-8' );
-		header( 'Content-Length: ' . strlen( $json ) );
-		header( 'Connection: close' );
-	}
-
-	echo $json; // phpcs:ignore WordPress.Security.EscapeOutput
-
-	if ( function_exists( 'fastcgi_finish_request' ) ) {
-		fastcgi_finish_request();
-	} elseif ( function_exists( 'litespeed_finish_request' ) ) {
-		litespeed_finish_request();
-	} else {
-		flush();
-	}
-}
-
-/**
- * The AI pipeline: moderation → prompt → Seedream → save → preview → log.
- *
- * @param array $input name, age, suffix, hobby, source_path, source_url.
- * @return array { preview_url } on success, { message } on failure.
- */
-function cornflex_box_run_generation( array $input ) {
-	$gemini_key = trim( (string) get_option( 'cbg_gemini_key' ) );
-	$atlas_key  = trim( (string) get_option( 'cbg_atlas_key' ) );
-	$retry_msg  = 'שגיאה ביצירת הקופסה. נסו שוב בעוד רגע.';
-	$log        = [
-		'child_name'       => $input['name'],
-		'child_age'        => $input['age'],
-		'hobby'            => $input['hobby'],
-		'source_image_url' => $input['source_url'],
-	];
-
-	$moderation = cornflex_box_moderate_image( $input['source_path'], $gemini_key );
-	if ( true !== $moderation ) {
-		wp_delete_file( $input['source_path'] );
-		cornflex_box_log( $log + [ 'status' => 'failed', 'error_message' => $moderation ] );
-		return [ 'message' => $moderation ];
-	}
-
-	$model_image = cornflex_box_atlas_upload( $input['source_path'], $atlas_key );
-	if ( ! $model_image ) {
-		$mime        = mime_content_type( $input['source_path'] );
-		$model_image = 'data:' . ( $mime ? $mime : 'image/jpeg' ) . ';base64,' . base64_encode( file_get_contents( $input['source_path'] ) ); // phpcs:ignore WordPress.WP.AlternativeFunctions
-	}
-
+function cornflex_box_build_prompt( array $input, $gemini_key ) {
 	$base_prompt = strtr(
 		cornflex_box_prompt_template(),
 		[
@@ -404,15 +299,23 @@ function cornflex_box_run_generation( array $input ) {
 CRITICAL SAFETY & COPYRIGHT RULE:
 Strictly convert any copyrighted brand, official football club name (e.g. Real Madrid, Barcelona, Liverpool, Maccabi), Disney, Marvel, Lego, or trademarked characters into safe, descriptive generic equivalents (e.g. describe team jersey colors, stadium atmosphere, soccer balls, superhero gear) without ever using the trademarked or copyrighted brand names. Output ONLY the raw final English prompt without quotes, markdown, or chat text. Base prompt: " . $base_prompt;
 
-	$final_prompt = cornflex_box_gemini_text( 'gemini-3.8-flash', $instruction, $gemini_key );
-	if ( ! $final_prompt ) {
-		$final_prompt = cornflex_box_gemini_text( 'gemini-3.5-flash-lite', $instruction, $gemini_key );
+	$prompt = cornflex_box_gemini_text( 'gemini-3.8-flash', $instruction, $gemini_key );
+	if ( ! $prompt ) {
+		$prompt = cornflex_box_gemini_text( 'gemini-3.5-flash-lite', $instruction, $gemini_key );
 	}
-	if ( ! $final_prompt ) {
-		$final_prompt = $base_prompt;
-	}
-	$log['prompt_used'] = $final_prompt;
 
+	return $prompt ? $prompt : $base_prompt;
+}
+
+/**
+ * Start a Seedream generation at Atlas Cloud (async).
+ *
+ * @param string $prompt    Final prompt.
+ * @param string $image_url Public URL of the uploaded photo.
+ * @param string $atlas_key API key.
+ * @return array { id } | { retry: true, error } for busy/temporary errors | { error }.
+ */
+function cornflex_box_atlas_submit( $prompt, $image_url, $atlas_key ) {
 	$res = cornflex_box_post_with_retry(
 		'https://api.atlascloud.ai/api/v1/model/generateImage',
 		[
@@ -423,181 +326,84 @@ Strictly convert any copyrighted brand, official football club name (e.g. Real M
 			'body'    => wp_json_encode(
 				[
 					'model'                    => 'bytedance/seedream-v5.0-pro/edit',
-					'prompt'                   => $final_prompt,
-					'images'                   => [ $model_image ],
+					'prompt'                   => $prompt,
+					'images'                   => [ $image_url ],
 					'size'                     => '1664*2496',
 					'output_format'            => 'png',
 					'thinking'                 => 'disabled',
 					'prompt_optimization_mode' => 'standard',
-					'enable_sync_mode'         => true,
+					'enable_sync_mode'         => false,
 				]
 			),
-			'timeout' => 240,
+			'timeout' => 30,
 		]
 	);
 
 	if ( is_wp_error( $res ) ) {
-		cornflex_box_log( $log + [ 'status' => 'failed', 'error_message' => $res->get_error_message() ] );
-		return [ 'message' => $retry_msg ];
-	}
-
-	$body = wp_remote_retrieve_body( $res );
-	$data = json_decode( $body, true );
-
-	if ( isset( $data['error'] ) || ( isset( $data['code'] ) && $data['code'] >= 400 ) ) {
-		$error = $data['msg'] ?? $data['error']['message'] ?? $data['message'] ?? $body;
-		cornflex_box_log( $log + [ 'status' => 'failed', 'error_message' => is_string( $error ) ? $error : wp_json_encode( $error ) ] );
-		return [ 'message' => $retry_msg ];
-	}
-
-	$remote_url = cornflex_box_atlas_output_url( (array) $data );
-	if ( '' === $remote_url ) {
-		$error = $data['message'] ?? substr( $body, 0, 250 );
-		cornflex_box_log( $log + [ 'status' => 'failed', 'error_message' => is_string( $error ) ? $error : wp_json_encode( $error ) ] );
-		return [ 'message' => 'לא התקבלה תמונה. נסו שוב בעוד רגע.' ];
-	}
-
-	$saved       = cornflex_box_save_remote_image( $remote_url, $input['name'] );
-	$preview_url = $saved['url'];
-	if ( $saved['path'] ) {
-		$preview_url = cornflex_box_create_preview( $saved['path'], $input['name'] ) ?: $saved['url'];
-	}
-
-	cornflex_box_log( $log + [ 'result_image_url' => $saved['url'] ] );
-
-	return [ 'preview_url' => $preview_url ];
-}
-
-/**
- * AJAX: start generating a cereal box cover.
- *
- * Validates and stores the upload, answers right away with a job ID, then
- * runs the pipeline after the connection is closed. The browser polls
- * cbg_job_status. Holding one request open for ~2 minutes failed on phones
- * (tab paused while switching apps) and behind proxy timeouts.
- *
- * POST: image (file), name, age, suffix, hobby, access_code.
- * Success: { job }.
- *
- * @return void
- */
-function cornflex_box_handle_generate() {
-	@set_time_limit( 300 ); // phpcs:ignore WordPress.PHP.NoSilencedErrors
-
-	// phpcs:disable WordPress.Security.NonceVerification -- public form; access code instead of a nonce so cached pages keep working.
-	$required_code = cornflex_box_access_code();
-	$given_code    = isset( $_POST['access_code'] ) ? sanitize_text_field( wp_unslash( $_POST['access_code'] ) ) : '';
-	if ( '' !== $required_code && ! hash_equals( $required_code, $given_code ) ) {
-		wp_send_json_error(
-			[
-				'message' => 'קוד הגישה שגוי.',
-				'code'    => 'access_code',
-			]
-		);
-	}
-
-	if ( '' === trim( (string) get_option( 'cbg_gemini_key' ) ) || '' === trim( (string) get_option( 'cbg_atlas_key' ) ) ) {
-		wp_send_json_error( [ 'message' => 'מפתחות ה-API אינם מוגדרים.' ] );
-	}
-
-	if ( empty( $_FILES['image'] ) || ! empty( $_FILES['image']['error'] ) ) {
-		wp_send_json_error( [ 'message' => 'לא נבחרה תמונה או שההעלאה נכשלה.' ] );
-	}
-
-	$name   = isset( $_POST['name'] ) ? trim( preg_replace( '/[^A-Z ]/', '', strtoupper( sanitize_text_field( wp_unslash( $_POST['name'] ) ) ) ) ) : '';
-	$age    = isset( $_POST['age'] ) ? absint( $_POST['age'] ) : 0;
-	$suffix = isset( $_POST['suffix'] ) ? preg_replace( '/[^A-Z]/', '', strtoupper( sanitize_text_field( wp_unslash( $_POST['suffix'] ) ) ) ) : '';
-	$hobby  = isset( $_POST['hobby'] ) ? sanitize_text_field( wp_unslash( $_POST['hobby'] ) ) : '';
-
-	if ( '' === $name ) {
-		wp_send_json_error( [ 'message' => 'נא להזין שם באנגלית.' ] );
-	}
-	if ( $age < 1 || $age > 99 ) {
-		wp_send_json_error( [ 'message' => 'נא לבחור גיל תקין.' ] );
-	}
-
-	require_once ABSPATH . 'wp-admin/includes/file.php';
-	$upload = wp_handle_upload(
-		$_FILES['image'], // phpcs:ignore WordPress.Security.ValidatedSanitizedInput
-		[
-			'test_form' => false,
-			'mimes'     => [
-				'jpg|jpeg|jpe' => 'image/jpeg',
-				'png'          => 'image/png',
-				'webp'         => 'image/webp',
-			],
-		]
-	);
-	// phpcs:enable
-
-	if ( isset( $upload['error'] ) ) {
-		wp_send_json_error( [ 'message' => 'שגיאה בשמירת התמונה: ' . $upload['error'] ] );
-	}
-
-	$job_id = wp_generate_password( 24, false );
-	cornflex_box_set_job(
-		$job_id,
-		[
-			'status'  => 'processing',
-			'started' => time(),
-		]
-	);
-
-	cornflex_box_respond_and_continue( [ 'job' => $job_id ] );
-
-	$result = cornflex_box_run_generation(
-		[
-			'name'        => $name,
-			'age'         => $age,
-			'suffix'      => '' === $suffix ? 'FLAKES' : $suffix,
-			'hobby'       => '' === $hobby ? 'Classic cheerful breakfast cereal morning fun' : $hobby,
-			'source_path' => $upload['file'],
-			'source_url'  => $upload['url'],
-		]
-	);
-
-	cornflex_box_set_job(
-		$job_id,
-		isset( $result['preview_url'] )
-			? [ 'status' => 'done', 'preview_url' => $result['preview_url'] ]
-			: [ 'status' => 'error', 'message' => $result['message'] ]
-	);
-
-	exit;
-}
-add_action( 'wp_ajax_cbg_generate', 'cornflex_box_handle_generate' );
-add_action( 'wp_ajax_nopriv_cbg_generate', 'cornflex_box_handle_generate' );
-
-/**
- * AJAX: status of a generation job.
- *
- * GET/POST: job.
- * Success: { status: processing } | { status: done, preview_url } | { status: error, message }.
- *
- * @return void
- */
-function cornflex_box_handle_job_status() {
-	$job_id = isset( $_REQUEST['job'] ) ? preg_replace( '/[^A-Za-z0-9]/', '', wp_unslash( $_REQUEST['job'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification, WordPress.Security.ValidatedSanitizedInput
-	$job    = $job_id ? cornflex_box_get_job( $job_id ) : false;
-
-	if ( ! $job ) {
-		wp_send_json_success(
-			[
-				'status'  => 'error',
-				'message' => 'משהו השתבש ביצירת הקופסה. נסו שוב.',
-			]
-		);
-	}
-
-	if ( 'processing' === $job['status'] && time() - (int) $job['started'] > CORNFLEX_BOX_JOB_TIMEOUT ) {
-		$job = [
-			'status'  => 'error',
-			'message' => 'היצירה לקחה יותר מדי זמן. נסו שוב.',
+		return [
+			'retry' => true,
+			'error' => $res->get_error_message(),
 		];
 	}
 
-	unset( $job['started'] );
-	wp_send_json_success( $job );
+	$http = (int) wp_remote_retrieve_response_code( $res );
+	$body = wp_remote_retrieve_body( $res );
+	$data = json_decode( $body, true );
+	$code = isset( $data['code'] ) ? (int) $data['code'] : $http;
+
+	if ( ! empty( $data['data']['id'] ) && $code < 400 ) {
+		return [ 'id' => $data['data']['id'] ];
+	}
+
+	$error = $data['msg'] ?? $data['message'] ?? substr( $body, 0, 250 );
+	$error = is_string( $error ) && '' !== $error ? $error : 'HTTP ' . $http;
+
+	// Rate limits and server errors are worth another try later.
+	return [
+		'retry' => 429 === $code || 429 === $http || $http >= 500 || $code >= 500,
+		'error' => $error,
+	];
 }
-add_action( 'wp_ajax_cbg_job_status', 'cornflex_box_handle_job_status' );
-add_action( 'wp_ajax_nopriv_cbg_job_status', 'cornflex_box_handle_job_status' );
+
+/**
+ * Check a Seedream generation at Atlas Cloud.
+ *
+ * @param string $id        Prediction ID.
+ * @param string $atlas_key API key.
+ * @return array { status: processing } | { status: completed, url } | { status: failed, error }.
+ */
+function cornflex_box_atlas_poll( $id, $atlas_key ) {
+	$res = wp_remote_get(
+		'https://api.atlascloud.ai/api/v1/model/prediction/' . rawurlencode( $id ),
+		[
+			'headers' => [ 'Authorization' => 'Bearer ' . $atlas_key ],
+			'timeout' => 15,
+		]
+	);
+
+	// Network hiccup: just check again on the next poll.
+	if ( is_wp_error( $res ) || wp_remote_retrieve_response_code( $res ) >= 500 ) {
+		return [ 'status' => 'processing' ];
+	}
+
+	$data   = json_decode( wp_remote_retrieve_body( $res ), true );
+	$status = isset( $data['data']['status'] ) ? strtolower( (string) $data['data']['status'] ) : '';
+
+	if ( in_array( $status, [ 'completed', 'succeeded', 'success' ], true ) ) {
+		$url = cornflex_box_atlas_output_url( (array) $data );
+		return '' !== $url
+			? [ 'status' => 'completed', 'url' => $url ]
+			: [ 'status' => 'failed', 'error' => 'No output image' ];
+	}
+
+	if ( in_array( $status, [ 'failed', 'error', 'canceled', 'cancelled' ], true ) ) {
+		$error = isset( $data['data']['error'] ) && '' !== $data['data']['error'] ? $data['data']['error'] : 'Generation failed';
+		return [ 'status' => 'failed', 'error' => is_string( $error ) ? $error : wp_json_encode( $error ) ];
+	}
+
+	if ( isset( $data['code'] ) && 404 === (int) $data['code'] ) {
+		return [ 'status' => 'failed', 'error' => 'Prediction not found' ];
+	}
+
+	return [ 'status' => 'processing' ];
+}

@@ -11,8 +11,8 @@
 	var LAST_STEP = 4;
 	var ESTIMATE_SECONDS = 120;
 	var POLL_INTERVAL_MS = 3000;
-	// A bit longer than the server's own 6-minute job timeout.
-	var POLL_GIVE_UP_MS = 7 * 60 * 1000;
+	// A bit longer than the server's own 10-minute job timeout (queue wait included).
+	var POLL_GIVE_UP_MS = 11 * 60 * 1000;
 	// Spread evenly over the estimate; the last one stays until the box is ready.
 	var LOADER_MESSAGES = [
 		'התמונה בפנים...',
@@ -249,19 +249,15 @@
 		scrollTop();
 
 		var secondsLeft = ESTIMATE_SECONDS;
-		updateLoader(secondsLeft);
+		var queuePosition = 0;
+		updateLoader(secondsLeft, queuePosition);
 		var ticker = setInterval(function () {
-			updateLoader(--secondsLeft);
+			// The estimate only starts counting once it's our turn.
+			if (!queuePosition) {
+				secondsLeft--;
+			}
+			updateLoader(secondsLeft, queuePosition);
 		}, 1000);
-
-		var data = new FormData();
-		data.append('action', 'cbg_generate');
-		data.append('image', state.file);
-		data.append('name', $('cdp_name').value.trim());
-		data.append('age', state.age);
-		data.append('suffix', state.suffix);
-		data.append('hobby', $('cdp_hobby').value.trim());
-		data.append('access_code', state.accessCode);
 
 		function finish() {
 			clearInterval(ticker);
@@ -275,7 +271,19 @@
 		}
 
 		// Start the job; the server answers right away and keeps working.
-		fetch(config.ajaxUrl, { method: 'POST', body: data, credentials: 'same-origin' })
+		shrinkPhoto(state.file)
+			.then(function (photo) {
+				var data = new FormData();
+				data.append('action', 'cbg_generate');
+				data.append('image', photo, photo.name || 'photo.jpg');
+				data.append('name', $('cdp_name').value.trim());
+				data.append('age', state.age);
+				data.append('suffix', state.suffix);
+				data.append('hobby', $('cdp_hobby').value.trim());
+				data.append('access_code', state.accessCode);
+
+				return fetch(config.ajaxUrl, { method: 'POST', body: data, credentials: 'same-origin' });
+			})
 			.then(function (res) {
 				return res.json();
 			})
@@ -284,7 +292,9 @@
 					pollJob(res.data.job, function (url) {
 						finish();
 						showResult(url);
-					}, fail);
+					}, fail, function (position) {
+						queuePosition = position;
+					});
 					return;
 				}
 
@@ -309,7 +319,7 @@
 	 * A failed check (offline, tab paused in the background) is just retried,
 	 * and coming back to the tab checks right away.
 	 */
-	function pollJob(jobId, onDone, onError) {
+	function pollJob(jobId, onDone, onError, onProgress) {
 		var startedAt = Date.now();
 		var timer = null;
 		var finished = false;
@@ -355,6 +365,7 @@
 						stop();
 						onError(job.message || 'משהו השתבש ביצירת הקופסה. נסו שוב.');
 					} else {
+						onProgress(job.status === 'queued' ? (job.position || 1) : 0);
 						schedule();
 					}
 				})
@@ -372,6 +383,49 @@
 		schedule();
 	}
 
+	/**
+	 * Big phone photos: resize to at most 2000px and re-encode as JPEG before
+	 * upload. Much faster on mobile data; plenty for the AI. Small photos (and
+	 * anything the browser can't decode) go up as they are.
+	 */
+	function shrinkPhoto(file) {
+		var MAX_SIDE = 2000;
+
+		return new Promise(function (resolve) {
+			if (file.size < 1.5 * 1024 * 1024 || !window.URL || !document.createElement('canvas').toBlob) {
+				resolve(file);
+				return;
+			}
+
+			var url = URL.createObjectURL(file);
+			var img = new Image();
+
+			img.onload = function () {
+				URL.revokeObjectURL(url);
+
+				var scale = Math.min(1, MAX_SIDE / Math.max(img.naturalWidth, img.naturalHeight));
+				var canvas = document.createElement('canvas');
+				canvas.width = Math.round(img.naturalWidth * scale);
+				canvas.height = Math.round(img.naturalHeight * scale);
+				canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+
+				canvas.toBlob(function (blob) {
+					if (!blob || blob.size >= file.size) {
+						resolve(file);
+						return;
+					}
+					blob.name = 'photo.jpg';
+					resolve(blob);
+				}, 'image/jpeg', 0.9);
+			};
+			img.onerror = function () {
+				URL.revokeObjectURL(url);
+				resolve(file);
+			};
+			img.src = url;
+		});
+	}
+
 	function formatTime(seconds) {
 		var m = Math.floor(seconds / 60);
 		var s = seconds % 60;
@@ -379,7 +433,13 @@
 	}
 
 	// Count down the estimate, then count up the extra time.
-	function updateLoader(secondsLeft) {
+	function updateLoader(secondsLeft, queuePosition) {
+		if (queuePosition) {
+			$('cdp_loader_timer').textContent = 'יש הרבה יוצרים עכשיו, אתם במקום ' + queuePosition + ' בתור';
+			$('cdp_loader_step_sub').textContent = 'עוד רגע מתחילים...';
+			return;
+		}
+
 		var elapsed = ESTIMATE_SECONDS - secondsLeft;
 		var slot = ESTIMATE_SECONDS / LOADER_MESSAGES.length;
 		var index = Math.min(LOADER_MESSAGES.length - 1, Math.floor(elapsed / slot));
