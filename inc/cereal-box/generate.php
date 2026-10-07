@@ -138,6 +138,106 @@ IS_SAFE: [YES or NO]
 }
 
 /**
+ * Remove a plain frame around a generated cover, so it prints edge to edge.
+ *
+ * Sometimes the model draws the cover as a product shot: the artwork sits on
+ * a white (or other plain) background. Walk in from each edge while the line
+ * is a plain run of the corner color, cut that off (plus a hair more for the
+ * soft shadow), then center-crop back to the original proportions and size.
+ * Images that already fill the canvas are left alone.
+ *
+ * @param string $path PNG/JPEG file, overwritten in place as PNG.
+ * @return bool Whether a frame was removed.
+ */
+function cornflex_box_trim_frame( $path ) {
+	if ( ! function_exists( 'imagecreatefromstring' ) ) {
+		return false;
+	}
+
+	$img = @imagecreatefromstring( (string) file_get_contents( $path ) ); // phpcs:ignore
+	if ( ! $img ) {
+		return false;
+	}
+
+	$w = imagesx( $img );
+	$h = imagesy( $img );
+
+	// Frame color: average of the four corners.
+	$bg = [ 0, 0, 0 ];
+	foreach ( [ [ 2, 2 ], [ $w - 3, 2 ], [ 2, $h - 3 ], [ $w - 3, $h - 3 ] ] as $corner ) {
+		$c      = imagecolorat( $img, $corner[0], $corner[1] );
+		$bg[0] += ( $c >> 16 ) & 255;
+		$bg[1] += ( $c >> 8 ) & 255;
+		$bg[2] += $c & 255;
+	}
+	$bg = array_map(
+		function ( $v ) {
+			return $v / 4;
+		},
+		$bg
+	);
+
+	// Is this row/column plain frame color?
+	$is_frame = function ( $horizontal, $index ) use ( $img, $w, $h, $bg ) {
+		$len  = $horizontal ? $w : $h;
+		$step = max( 1, (int) ( $len / 300 ) );
+		$far  = 0;
+		$n    = 0;
+		for ( $i = 0; $i < $len; $i += $step ) {
+			$c = $horizontal ? imagecolorat( $img, $i, $index ) : imagecolorat( $img, $index, $i );
+			$d = abs( ( ( $c >> 16 ) & 255 ) - $bg[0] ) + abs( ( ( $c >> 8 ) & 255 ) - $bg[1] ) + abs( ( $c & 255 ) - $bg[2] );
+			if ( $d > 60 ) {
+				$far++;
+			}
+			$n++;
+		}
+		return $far / $n < 0.02;
+	};
+
+	$max_x = (int) ( $w * 0.2 );
+	$max_y = (int) ( $h * 0.2 );
+
+	for ( $top = 0; $top < $max_y && $is_frame( true, $top ); $top++ );
+	for ( $bottom = 0; $bottom < $max_y && $is_frame( true, $h - 1 - $bottom ); $bottom++ );
+	for ( $left = 0; $left < $max_x && $is_frame( false, $left ); $left++ );
+	for ( $right = 0; $right < $max_x && $is_frame( false, $w - 1 - $right ); $right++ );
+
+	// Nothing worth cutting: the artwork already reaches the edges.
+	if ( max( $top / $h, $bottom / $h, $left / $w, $right / $w ) < 0.008 ) {
+		imagedestroy( $img );
+		return false;
+	}
+
+	// A little extra for the soft edge/shadow where the artwork meets the frame.
+	$pad    = (int) round( min( $w, $h ) * 0.012 );
+	$x      = $left ? $left + $pad : 0;
+	$y      = $top ? $top + $pad : 0;
+	$cw     = $w - $x - ( $right ? $right + $pad : 0 );
+	$ch     = $h - $y - ( $bottom ? $bottom + $pad : 0 );
+
+	// Back to the original proportions (center crop), then the original size.
+	$ratio = $w / $h;
+	if ( $cw / $ch > $ratio ) {
+		$new_w = (int) round( $ch * $ratio );
+		$x    += (int) ( ( $cw - $new_w ) / 2 );
+		$cw    = $new_w;
+	} else {
+		$new_h = (int) round( $cw / $ratio );
+		$y    += (int) ( ( $ch - $new_h ) / 2 );
+		$ch    = $new_h;
+	}
+
+	$out = imagecreatetruecolor( $w, $h );
+	imagecopyresampled( $out, $img, 0, 0, $x, $y, $w, $h, $cw, $ch );
+	$saved = imagepng( $out, $path, 6 );
+
+	imagedestroy( $img );
+	imagedestroy( $out );
+
+	return (bool) $saved;
+}
+
+/**
  * Download the generated image into the media library.
  *
  * @param string $image_url  Remote URL.
@@ -156,6 +256,10 @@ function cornflex_box_save_remote_image( $image_url, $child_name ) {
 			'path' => false,
 		];
 	}
+
+	// Before WordPress makes its thumbnails, so they match the trimmed image.
+	wp_raise_memory_limit( 'image' );
+	cornflex_box_trim_frame( $tmp );
 
 	$attachment_id = media_handle_sideload(
 		[
@@ -273,9 +377,18 @@ function cornflex_box_build_prompt( array $input, $gemini_key ) {
 		]
 	);
 
-	$instruction = "You are an expert prompt engineer for the Seedream 5.0 image editing model. Enhance and finalize the cereal box cover prompt below.
+	$instruction = "You are an expert prompt engineer for the Seedream 5.0 image editing model. Rewrite and finalize the image prompt below.
+
+OUTPUT FORMAT RULE (most important):
+The image must be a flat, full-bleed 2D poster illustration whose artwork fills the entire canvas, touching all four edges. Describe ONLY the artwork itself: the child, the bowl, the background art, the floating cereal, the title lettering.
+Never use these words or ideas anywhere in the output, not even in a negative sentence such as 'no X': box, cereal box, package, packaging, carton, cardboard, mockup, product shot, product photo, 3D object, side panel, frame, border, margin, white background. Image models tend to draw whatever is named, so express every restriction positively instead (for example: 'the colorful background art continues to every edge of the canvas').
+
 CRITICAL SAFETY & COPYRIGHT RULE:
-Strictly convert any copyrighted brand, official football club name (e.g. Real Madrid, Barcelona, Liverpool, Maccabi), Disney, Marvel, Lego, or trademarked characters into safe, descriptive generic equivalents (e.g. describe team jersey colors, stadium atmosphere, soccer balls, superhero gear) without ever using the trademarked or copyrighted brand names. Output ONLY the raw final English prompt without quotes, markdown, or chat text. Base prompt: " . $base_prompt;
+Strictly convert any copyrighted brand, official football club name (e.g. Real Madrid, Barcelona, Liverpool, Maccabi), Disney, Marvel, Lego, or trademarked characters into safe, descriptive generic equivalents (e.g. describe team jersey colors, stadium atmosphere, soccer balls, superhero gear) without ever using the trademarked or copyrighted brand names.
+
+Keep the child's likeness, age, theme and the exact title text from the base prompt. Translate any non-English text (except the title) into English. Output ONLY the raw final English prompt without quotes, markdown, or chat text.
+
+Base prompt: " . $base_prompt;
 
 	$prompt = cornflex_box_gemini_text( 'gemini-3.8-flash', $instruction, $gemini_key );
 	if ( ! $prompt ) {
