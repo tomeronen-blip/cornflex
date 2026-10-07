@@ -52,6 +52,7 @@ require_once CORNFLEX_BOX_DIR . '/setup.php';
 require_once CORNFLEX_BOX_DIR . '/admin.php';
 require_once CORNFLEX_BOX_DIR . '/balance.php';
 require_once CORNFLEX_BOX_DIR . '/gallery.php';
+require_once CORNFLEX_BOX_DIR . '/dashboard.php';
 require_once CORNFLEX_BOX_DIR . '/generate.php';
 require_once CORNFLEX_BOX_DIR . '/jobs.php';
 require_once CORNFLEX_BOX_DIR . '/frontend.php';
