@@ -50,6 +50,7 @@ function cornflex_box_asset_version( $file ) {
 
 require_once CORNFLEX_BOX_DIR . '/setup.php';
 require_once CORNFLEX_BOX_DIR . '/admin.php';
+require_once CORNFLEX_BOX_DIR . '/gallery.php';
 require_once CORNFLEX_BOX_DIR . '/generate.php';
 require_once CORNFLEX_BOX_DIR . '/jobs.php';
 require_once CORNFLEX_BOX_DIR . '/frontend.php';

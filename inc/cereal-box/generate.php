@@ -138,29 +138,6 @@ IS_SAFE: [YES or NO]
 }
 
 /**
- * Save a 750px-wide JPEG preview next to the full-size result.
- *
- * @param string $image_path Full-size local file.
- * @param string $child_name Used in the file name.
- * @return string|false Preview URL.
- */
-function cornflex_box_create_preview( $image_path, $child_name ) {
-	$editor = wp_get_image_editor( $image_path );
-	if ( is_wp_error( $editor ) ) {
-		return false;
-	}
-
-	$editor->resize( 750, null );
-	$editor->set_quality( 75 );
-
-	$upload_dir = wp_upload_dir();
-	$filename   = 'preview_' . sanitize_title( $child_name ) . '_' . time() . '.jpg';
-	$saved      = $editor->save( $upload_dir['path'] . '/' . $filename, 'image/jpeg' );
-
-	return is_wp_error( $saved ) ? false : $upload_dir['url'] . '/' . $saved['file'];
-}
-
-/**
  * Download the generated image into the media library.
  *
  * @param string $image_url  Remote URL.

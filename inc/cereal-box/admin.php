@@ -18,7 +18,7 @@ function cornflex_box_admin_menu() {
 	add_menu_page( 'Cornflex', 'Cornflex', 'manage_options', 'cereal-box-settings', 'cornflex_box_settings_page', 'dashicons-art', 30 );
 	add_submenu_page( 'cereal-box-settings', 'הגדרות מערכת', 'הגדרות מערכת', 'manage_options', 'cereal-box-settings', 'cornflex_box_settings_page' );
 	add_submenu_page( 'cereal-box-settings', 'הגדרות רקע נע', 'הגדרות רקע נע', 'manage_options', 'cereal-box-bg-manager', 'cornflex_box_bg_page' );
-	add_submenu_page( 'cereal-box-settings', 'היסטוריית הפקות', 'היסטוריית הפקות', 'manage_options', 'cereal-box-history', 'cornflex_box_history_page' );
+	add_submenu_page( 'cereal-box-settings', 'הפקות', 'הפקות', 'manage_options', 'cereal-box-history', 'cornflex_box_gallery_page' );
 }
 add_action( 'admin_menu', 'cornflex_box_admin_menu' );
 
@@ -235,83 +235,6 @@ function cornflex_box_bg_page() {
 				<?php endforeach; ?>
 			</ul>
 		</div>
-	</div>
-	<?php
-}
-
-/**
- * History page: the 50 latest generations, with errors.
- *
- * @return void
- */
-function cornflex_box_history_page() {
-	global $wpdb;
-
-	cornflex_box_maybe_install();
-	$table   = cornflex_box_table();
-	$records = $wpdb->get_results( "SELECT * FROM $table ORDER BY id DESC LIMIT 50", ARRAY_A ); // phpcs:ignore WordPress.DB
-	?>
-	<div class="wrap" style="direction: rtl; text-align: right; max-width: 1200px;">
-		<h1>היסטוריית הפקות</h1>
-		<p>כל היצירות שהופקו באתר, כולל סטטוסים ושגיאות שהוחזרו מהשרת.</p>
-
-		<?php if ( empty( $records ) ) : ?>
-			<div style="background: #fff; padding: 24px; border: 1px solid #e4e4e4; border-radius: 8px; margin-top: 20px; color: #71717a;">אין עדיין רשומות במערכת.</div>
-		<?php else : ?>
-			<div style="margin-top: 20px; display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 20px;">
-				<?php
-				foreach ( $records as $item ) :
-					$is_success = empty( $item['status'] ) || 'success' === $item['status'];
-					?>
-					<div style="background: #fff; border: 1px solid <?php echo $is_success ? '#e4e4e4' : '#fca5a5'; ?>; border-radius: 12px; padding: 18px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
-						<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-							<span style="font-size: 12px; color: #71717a;"><?php echo esc_html( $item['created_at'] ); ?></span>
-							<?php if ( $is_success ) : ?>
-								<span style="background: #dcfce7; color: #15803d; font-size: 11px; font-weight: bold; padding: 3px 8px; border-radius: 999px;">הופק בהצלחה</span>
-							<?php else : ?>
-								<span style="background: #fee2e2; color: #b91c1c; font-size: 11px; font-weight: bold; padding: 3px 8px; border-radius: 999px;">שגיאה ביצירה</span>
-							<?php endif; ?>
-						</div>
-
-						<div style="display: flex; gap: 10px; margin-bottom: 12px;">
-							<?php if ( ! empty( $item['result_image_url'] ) ) : ?>
-								<div style="flex: 2;">
-									<img src="<?php echo esc_url( $item['result_image_url'] ); ?>" style="width: 100%; height: 180px; object-fit: cover; border-radius: 6px; border: 1px solid #e4e4e4;">
-									<div style="font-size: 11px; color: #71717a; text-align: center; margin-top: 4px;">חזית אריזה מקורית</div>
-								</div>
-							<?php endif; ?>
-							<?php if ( ! empty( $item['source_image_url'] ) ) : ?>
-								<div style="flex: 1;">
-									<img src="<?php echo esc_url( $item['source_image_url'] ); ?>" style="width: 100%; height: 90px; object-fit: cover; border-radius: 4px; border: 1px solid #e4e4e4;">
-									<div style="font-size: 10px; color: #71717a; text-align: center; margin-top: 4px;">מקור שהועלה</div>
-								</div>
-							<?php endif; ?>
-						</div>
-
-						<div style="font-weight: 700; font-size: 15px; color: #09090b;"><?php echo esc_html( $item['child_name'] ); ?> (גיל <?php echo esc_html( $item['child_age'] ); ?>)</div>
-						<div style="font-size: 13px; color: #52525b; margin: 4px 0 10px 0;">נושא/תחביב: <?php echo esc_html( ! empty( $item['hobby'] ) ? $item['hobby'] : 'ללא' ); ?></div>
-
-						<?php if ( ! $is_success && ! empty( $item['error_message'] ) ) : ?>
-							<div style="background: #fef2f2; border: 1px solid #fecaca; border-radius: 6px; padding: 10px; margin-bottom: 10px;">
-								<div style="font-size: 12px; font-weight: bold; color: #991b1b; margin-bottom: 4px;">סיבת השגיאה:</div>
-								<div style="font-size: 11px; color: #7f1d1d; word-break: break-word; line-height: 1.4;"><?php echo esc_html( $item['error_message'] ); ?></div>
-							</div>
-						<?php endif; ?>
-
-						<?php if ( ! empty( $item['prompt_used'] ) ) : ?>
-							<details style="background: #f4f4f5; border-radius: 6px; padding: 8px; font-size: 12px; margin-bottom: 10px;">
-								<summary style="cursor: pointer; font-weight: 600; color: #27272a;">הצג פרומפט מלא שנוצר</summary>
-								<p style="margin: 8px 0 0 0; direction: ltr; font-family: monospace; font-size: 11px; color: #3f3f46; word-break: break-word;"><?php echo esc_html( $item['prompt_used'] ); ?></p>
-							</details>
-						<?php endif; ?>
-
-						<?php if ( ! empty( $item['result_image_url'] ) ) : ?>
-							<a href="<?php echo esc_url( $item['result_image_url'] ); ?>" target="_blank" download style="display: block; text-align: center; background: #003fa3; color: #fff; padding: 8px; text-decoration: none; border-radius: 6px; font-size: 13px; font-weight: 500;">הורדת קובץ הדפסה מקורי (איכות מלאה)</a>
-						<?php endif; ?>
-					</div>
-				<?php endforeach; ?>
-			</div>
-		<?php endif; ?>
 	</div>
 	<?php
 }

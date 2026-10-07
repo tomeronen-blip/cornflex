@@ -344,11 +344,10 @@ function cornflex_box_job_check( array $job ) {
 	// Completed: save the full image, make the small preview, log.
 	cornflex_box_job_update( $job['id'], [ 'status' => 'finishing' ] );
 
+	// The visitor sees the slim version – the same file the "הפקות" page shares.
 	$saved       = cornflex_box_save_remote_image( $result['url'], $job['input']['name'] );
-	$preview_url = $saved['url'];
-	if ( $saved['path'] ) {
-		$preview_url = cornflex_box_create_preview( $saved['path'], $job['input']['name'] ) ?: $saved['url'];
-	}
+	$lean        = $saved['path'] ? cornflex_box_lean_version( $saved['url'] ) : null;
+	$preview_url = $lean && ! is_wp_error( $lean ) ? $lean['url'] : $saved['url'];
 
 	cornflex_box_log( cornflex_box_job_log_row( $job ) + [ 'result_image_url' => $saved['url'] ] );
 
