@@ -4,7 +4,7 @@
  *
  * Shows small thumbnails (WordPress's own "medium" size), so the page loads
  * fast even though the originals are ~8MB PNGs. Each cover can be downloaded
- * in full quality or as a slim 750px JPEG, and the slim version can be copied
+ * in full quality or as a slim 550px JPEG, and the slim version can be copied
  * as a link or sent on WhatsApp.
  *
  * @package HelloElementorChild
@@ -15,7 +15,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 const CORNFLEX_BOX_GALLERY_PER_PAGE = 24;
-const CORNFLEX_BOX_LEAN_WIDTH       = 750;
+const CORNFLEX_BOX_LEAN_WIDTH       = 550;
 
 /**
  * Local file and attachment for a generated image URL.
@@ -43,7 +43,8 @@ function cornflex_box_image_file( $url ) {
 /**
  * The slim JPEG of a generated image, created the first time it's needed.
  *
- * Saved next to the original as {name}-lean.jpg.
+ * Saved next to the original as {name}-lean{width}.jpg; the width in the name
+ * means a new size never serves an older cached file.
  *
  * @param string $url Full image URL.
  * @return array|WP_Error { url, path }
@@ -54,8 +55,9 @@ function cornflex_box_lean_version( $url ) {
 		return new WP_Error( 'missing', 'הקובץ המקורי לא נמצא בשרת.' );
 	}
 
-	$lean_path = preg_replace( '/\.[^.\/]+$/', '', $file['path'] ) . '-lean.jpg';
-	$lean_url  = preg_replace( '/\.[^.\/]+$/', '', $url ) . '-lean.jpg';
+	$suffix    = '-lean' . CORNFLEX_BOX_LEAN_WIDTH . '.jpg';
+	$lean_path = preg_replace( '/\.[^.\/]+$/', '', $file['path'] ) . $suffix;
+	$lean_url  = preg_replace( '/\.[^.\/]+$/', '', $url ) . $suffix;
 
 	if ( ! file_exists( $lean_path ) ) {
 		$editor = wp_get_image_editor( $file['path'] );
