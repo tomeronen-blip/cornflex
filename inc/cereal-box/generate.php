@@ -95,10 +95,15 @@ function cornflex_box_moderate_image( $image_path, $gemini_key ) {
 
 	$mime = mime_content_type( $image_path );
 
-	$prompt = "Look at this image. Answer strictly in this exact format:
-HAS_PERSON: [YES or NO]
-IS_SAFE: [YES or NO]
-(IS_SAFE means NO nudity, NO porn, NO sexual content, NO violence, completely suitable for a kids cereal box).";
+	// Lenient on purpose: a wrong "unsafe" turns away a parent with an ordinary photo.
+	$prompt = "You check photos that parents upload to make a personalized cereal box for their child.
+Answer with exactly these two lines and nothing else:
+HAS_PERSON: YES or NO  (is at least one real person, adult or child, clearly visible?)
+IS_SAFE: YES or NO
+
+Answer IS_SAFE: NO only for: nudity or sexual content, graphic violence or gore, a weapon aimed at someone, drugs, or hateful symbols.
+Ordinary everyday photos are SAFE: children at home, outdoors, in the street, at school, at the beach or pool in normal swimwear, in costumes or uniforms, with toys, pets, drawings, signs or text in the background, selfies, and group photos.
+When in doubt, answer IS_SAFE: YES.";
 
 	$payload = [
 		'contents' => [
@@ -431,6 +436,50 @@ function cornflex_box_strip_mockup_words( $prompt ) {
 	);
 
 	return implode( ' ', $kept );
+}
+
+/**
+ * Upload a photo to Atlas Cloud's own storage.
+ *
+ * Atlas then reads it from there instead of downloading it from this site,
+ * which sometimes timed out ("Timeout while downloading url").
+ *
+ * @param string $path      Local file.
+ * @param string $atlas_key API key.
+ * @return string URL on Atlas storage, or '' if the upload failed.
+ */
+function cornflex_box_atlas_upload( $path, $atlas_key ) {
+	if ( ! file_exists( $path ) ) {
+		return '';
+	}
+
+	$boundary = wp_generate_password( 24, false );
+	$mime     = mime_content_type( $path );
+	$body     = "--$boundary\r\n"
+		. 'Content-Disposition: form-data; name="file"; filename="' . basename( $path ) . "\"\r\n"
+		. 'Content-Type: ' . ( $mime ? $mime : 'image/jpeg' ) . "\r\n\r\n"
+		. file_get_contents( $path ) // phpcs:ignore WordPress.WP.AlternativeFunctions
+		. "\r\n--$boundary--\r\n";
+
+	$res = wp_remote_post(
+		'https://api.atlascloud.ai/api/v1/model/uploadMedia',
+		[
+			'headers' => [
+				'Authorization' => 'Bearer ' . $atlas_key,
+				'Content-Type'  => 'multipart/form-data; boundary=' . $boundary,
+			],
+			'body'    => $body,
+			'timeout' => 30,
+		]
+	);
+
+	if ( is_wp_error( $res ) ) {
+		return '';
+	}
+
+	$data = json_decode( wp_remote_retrieve_body( $res ), true );
+
+	return isset( $data['data']['download_url'] ) ? (string) $data['data']['download_url'] : '';
 }
 
 /**

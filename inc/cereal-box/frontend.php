@@ -120,35 +120,46 @@ function cornflex_box_bg_images() {
 }
 
 /**
- * Build the background columns: each column repeats the gallery in a random
- * order, never showing the same image twice in a row.
+ * Images in one loop of a background column. The column shows the loop twice
+ * and scrolls by exactly one loop, so the end meets the start seamlessly.
+ * Kept short on purpose: a very tall moving layer goes partly black on iPhone.
+ */
+const CORNFLEX_BOX_BG_LOOP = 10;
+
+/**
+ * Build the background columns: a random loop of different images, written
+ * twice, never showing the same image twice in a row (seam included).
  *
  * @param string[] $images  Image URLs.
  * @param int      $columns Number of columns.
  * @return array[] One list of URLs per column.
  */
 function cornflex_box_bg_columns( array $images, $columns ) {
-	$count    = count( $images );
-	$per_col  = max( 10, $count * 2 );
-	$result   = [];
+	$images = array_values( array_unique( $images ) );
+	$count  = count( $images );
+	$result = [];
 
 	for ( $c = 0; $c < $columns; $c++ ) {
-		$items = [];
-		$pool  = [];
+		$loop = [];
+		$pool = [];
 
-		while ( count( $items ) < $per_col ) {
+		while ( count( $loop ) < CORNFLEX_BOX_BG_LOOP ) {
 			if ( empty( $pool ) ) {
 				$pool = $images;
 				shuffle( $pool );
-				if ( ! empty( $items ) && $count > 1 && end( $items ) === $pool[0] ) {
-					$pool[0]            = $pool[ $count - 1 ];
-					$pool[ $count - 1 ] = end( $items );
+				if ( $loop && $count > 1 && end( $loop ) === $pool[0] ) {
+					$pool[] = array_shift( $pool );
 				}
 			}
-			$items[] = array_shift( $pool );
+			$loop[] = array_shift( $pool );
 		}
 
-		$result[] = $items;
+		// The seam: the loop's last image is followed by its first.
+		if ( $count > 1 && $loop[0] === end( $loop ) ) {
+			$loop[] = array_shift( $loop );
+		}
+
+		$result[] = array_merge( $loop, $loop );
 	}
 
 	return $result;
@@ -191,6 +202,10 @@ function cornflex_box_render() {
 	if ( $speed <= 0 ) {
 		$speed = 85;
 	}
+	// The setting was the time to scroll through the whole gallery once; keep
+	// that pace now that one loop is CORNFLEX_BOX_BG_LOOP images.
+	$images_count = count( cornflex_box_bg_images() );
+	$loop_seconds = $images_count ? round( $speed * CORNFLEX_BOX_BG_LOOP / max( 5, $images_count ), 1 ) : $speed;
 
 	$images   = cornflex_box_bg_images();
 	$bg_cols  = $images ? cornflex_box_bg_columns( $images, $columns ) : [];
@@ -200,7 +215,7 @@ function cornflex_box_render() {
 
 	ob_start();
 	?>
-	<div class="cdp-wrapper" style="--cdp-speed: <?php echo esc_attr( $speed ); ?>s; --cdp-bg-rgb: <?php echo esc_attr( $bg_rgb ); ?>; --cdp-overlay: <?php echo esc_attr( $overlay ); ?>; --cdp-overlay-mobile: <?php echo esc_attr( $overlay_mobile ); ?>; --cdp-sides: <?php echo esc_attr( $sides ); ?>;">
+	<div class="cdp-wrapper" style="--cdp-speed: <?php echo esc_attr( $loop_seconds ); ?>s; --cdp-bg-rgb: <?php echo esc_attr( $bg_rgb ); ?>; --cdp-overlay: <?php echo esc_attr( $overlay ); ?>; --cdp-overlay-mobile: <?php echo esc_attr( $overlay_mobile ); ?>; --cdp-sides: <?php echo esc_attr( $sides ); ?>;">
 		<div class="cdp-viewport" style="opacity: <?php echo esc_attr( $bg_opacity ); ?>;">
 			<?php foreach ( $bg_cols as $c => $col_imgs ) : ?>
 				<div class="cdp-col <?php echo 0 === $c % 2 ? 'direction-up' : 'direction-down'; ?>">

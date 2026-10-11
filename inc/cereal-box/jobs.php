@@ -165,16 +165,19 @@ function cornflex_box_job_unlock( $id ) {
  * @return void
  */
 function cornflex_box_job_fail( array $job, $message, $detail = '' ) {
-	cornflex_box_job_update(
-		$job['id'],
-		[
-			'status'       => 'error',
-			'message'      => $message,
-			'locked_until' => 0,
-		]
+	global $wpdb;
+
+	// Only the request that actually ends the job logs it (two polls can race here).
+	$ended = $wpdb->query( // phpcs:ignore WordPress.DB
+		$wpdb->prepare(
+			'UPDATE ' . cornflex_box_jobs_table() . " SET status = 'error', message = %s, locked_until = 0, updated_at = %d WHERE id = %s AND status NOT IN ('done','error')", // phpcs:ignore WordPress.DB
+			$message,
+			time(),
+			$job['id']
+		)
 	);
 
-	if ( empty( $job['input']['mock'] ) ) {
+	if ( 1 === (int) $ended && empty( $job['input']['mock'] ) ) {
 		cornflex_box_log(
 			cornflex_box_job_log_row( $job ) + [
 				'status'        => 'failed',
@@ -272,7 +275,16 @@ function cornflex_box_job_prepare( array $job ) {
 		cornflex_box_job_update( $job['id'], [ 'prompt' => $job['prompt'] ] );
 	}
 
-	$submit = cornflex_box_atlas_submit( $job['prompt'], $input['source_url'], $atlas_key );
+	// Hand Atlas the photo on its own storage (once per job); its URL on this
+	// site is the fallback.
+	if ( empty( $input['atlas_image'] ) ) {
+		$input['atlas_image'] = cornflex_box_atlas_upload( $input['source_path'], $atlas_key );
+		if ( $input['atlas_image'] ) {
+			cornflex_box_job_update( $job['id'], [ 'input' => wp_json_encode( $input ) ] );
+		}
+	}
+
+	$submit = cornflex_box_atlas_submit( $job['prompt'], $input['atlas_image'] ? $input['atlas_image'] : $input['source_url'], $atlas_key );
 
 	if ( isset( $submit['id'] ) ) {
 		cornflex_box_job_update(
@@ -447,7 +459,12 @@ function cornflex_box_job_advance( $id ) {
 	$now = time();
 
 	if ( $now - (int) $job['created_at'] > CORNFLEX_BOX_JOB_TIMEOUT ) {
-		cornflex_box_job_fail( $job, 'היצירה לקחה יותר מדי זמן. נסו שוב.', 'Timed out in status ' . $job['status'] );
+		$detail = 'Timed out in status ' . $job['status'];
+		if ( $job['atlas_id'] ) {
+			$last    = cornflex_box_atlas_poll( $job['atlas_id'], trim( (string) get_option( 'cbg_atlas_key' ) ) );
+			$detail .= ' (Atlas ' . $job['atlas_id'] . ': ' . $last['status'] . ( isset( $last['error'] ) ? ' – ' . $last['error'] : '' ) . ')';
+		}
+		cornflex_box_job_fail( $job, 'היצירה לקחה יותר מדי זמן. נסו שוב.', $detail );
 		return cornflex_box_job_get( $id );
 	}
 
@@ -649,8 +666,8 @@ function cornflex_box_handle_generate() {
 		]
 	);
 
-	// Old jobs are only needed while their visitor is waiting.
-	$wpdb->query( $wpdb->prepare( 'DELETE FROM ' . cornflex_box_jobs_table() . ' WHERE created_at < %d', $now - DAY_IN_SECONDS ) ); // phpcs:ignore WordPress.DB
+	// Old jobs: kept a week, to look into failures.
+	$wpdb->query( $wpdb->prepare( 'DELETE FROM ' . cornflex_box_jobs_table() . ' WHERE created_at < %d', $now - WEEK_IN_SECONDS ) ); // phpcs:ignore WordPress.DB
 
 	cornflex_box_respond_and_continue( [ 'job' => $id ] );
 	cornflex_box_job_advance( $id );
